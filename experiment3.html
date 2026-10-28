@@ -1,0 +1,2310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sevdeck</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Sevdeck for Windows. Press Alt + Space, pick a number from 1 to 7, and what you need opens right away.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230a6cff'/%3E%3Cpath d='M20 20h24L30 46' fill='none' stroke='%23fff' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+/* Satu halaman terang seperti halaman produk, berbahasa Inggris. Pembukanya simulasi desktop Windows (mode terang)
+   selebar & setinggi jendela, digambar 1:1 (satu piksel CSS = satu piksel logis Windows): Alt + Space, membuka folder,
+   menyeret file & folder dari File Explorer ke bar, membuka dari area notifikasi, berganti profil. Bagian lain: judul
+   besar, satu kalimat, dan desktop dalam bingkai. Mockup app memakai token tema.h (gelap di bingkai, terang di
+   pembuka) dan ukuran "Sedang" (bar 884 x 140). */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg2: #f5f5f7;
+  --fg: #1d1d1f;
+  --fg2: #6e6e73;
+  --fg3: #86868b;
+  --garis: rgba(0, 0, 0, 0.08);
+  --tombol: #0a6cf0;
+  --tombol-tekan: #0858c4;
+  --tautan: #0a6cf0;
+
+  /* token app (tema.h, gelap) */
+  --aksen: #0a84ff;
+  /* Latar yang dicampur aksen saat latar berwarna (.berwarna): warna dasarnya ditulis sekali di --*-dasar. */
+  --bar-dasar: #0c0c0e;
+  --kotak-dasar: #1f1f22;
+  --panel-dasar: #141416;
+  --isian-dasar: #1f1f22;
+  --pilih-dasar: #26262a;
+  --bar: var(--bar-dasar);
+  --kotak: var(--kotak-dasar);
+  --panel: var(--panel-dasar);
+  --isian: var(--isian-dasar);
+  --pilih: var(--pilih-dasar);
+  --tint-kadar: 8%;          /* tema.h latarGelap */
+  --kaki: 64px;              /* tinggi kaki halaman di layar lebar; penutup memberi tempat sebanyak ini */
+  /* Nisan (user 2026-10-27, header dihapus): --tinggi-nav (52) dan --ruang-nav (64), ruang header di atas bagian. */
+  /* Nisan (user 2026-10-27, header kembali ke atas): --ruang-pil, ruang bawah untuk pil navigasi. */
+  --redup-berwarna: #95959a; /* tema.h teksRedupLatarGelap */
+  --label: #d1d1d6;
+  --redup: #8e8e93;
+  --kedua: #c7c7cc;
+  --putih: #f5f5f7;
+
+  --tampil: "Plus Jakarta Sans", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --gerak: cubic-bezier(0.22, 0.9, 0.28, 1);
+  /* Wallpaper semua desktop: foto ladang lavender lavender.jpg di sebelah halaman ini (user 2026-10-27, "bg nya jadi
+     pakai ini aja"). KOREKSI: dulu bukit hijau yang dilukis skrip gaya impresionis (wallpaper()) dengan gradasi
+     "linear-gradient(180deg, #1d58d0 0%, #8dbaf0 52%, #84c83a 54%, #2f7a1e 100%)" selagi belum siap; sebelumnya lagi
+     "url("bliss.jpg")" dan pegunungan danau. Satu lapis saja: "var(--wp) center / cover" cuma mengatur lapis terakhir. */
+  --wp: url("lavender.jpg");
+}
+@property --ring { syntax: "<color>"; inherits: true; initial-value: #0a84ff; }
+
+*, *::before, *::after { box-sizing: border-box; }
+/* Halaman tetap bisa digulir, scrollbar-nya saja yang disembunyikan. */
+html { scroll-behavior: smooth; scroll-padding-top: 0; /* KOREKSI (2026-10-27): dulu 64px, ruang header atas yang sudah jadi pil bawah */ scrollbar-width: none; -ms-overflow-style: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--tampil); font-size: 17px; line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: transparent; transition: background .3s; }
+.gulir body::before { background: rgba(255, 255, 255, 0.82); }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tautan); outline-offset: 3px; border-radius: 6px; }
+/* Satu lebar & satu tepi untuk navigasi, bagian, penutup, dan kaki, jadi teks kiri bagian sejajar logo. KOREKSI (user
+   2026-10-26, tulisan kiri "mepet banget sama pinggir"): dulu max-width 1120 dengan tepi 16, dan bagian sendiri melebar
+   ke 1320, jadi di layar laptop teksnya cuma 16 px dari tepi. */
+.lebar { width: 100%; max-width: 1320px; margin-inline: auto; padding-left: max(clamp(20px, 5vw, 64px), env(safe-area-inset-left, 0px)); padding-right: max(clamp(20px, 5vw, 64px), env(safe-area-inset-right, 0px)); }
+
+/* Nisan (user 2026-10-27, "si header floating itu hapus"): .nav (header kaca mengambang, muncul lewat html.lewat),
+   .merek, dan .unduh-kecil (tombol Download kecil di header). Penggantinya logo kiri atas (.hero-merek). */
+
+/* ── Tipografi ────────────────────────────────────────────────────────── */
+h1, h2 { font-weight: 800; letter-spacing: -0.035em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h2 { font-size: clamp(34px, min(5.6vw, 10vh), 72px); }
+.pengantar { font-size: clamp(19px, 2.2vw, 24px); font-weight: 500; color: var(--fg2); line-height: 1.4; margin: 0; max-width: 36ch; text-wrap: pretty; }
+.alis { font-size: clamp(17px, 1.8vw, 21px); font-weight: 700; margin: 0 0 14px; letter-spacing: -0.01em; }
+.alis.biru { color: var(--tombol); }
+.alis.tiga { background: linear-gradient(90deg, #0a6cf0, #208439 50%, #e30258); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tombol { display: inline-flex; align-items: center; height: 48px; padding: 0 26px; border-radius: 999px; background: var(--tombol); color: #fff; text-decoration: none; font-weight: 600; font-size: 17px; transition: background .2s, transform .2s var(--gerak); }
+.tombol:hover { background: var(--tombol-tekan); }
+.tombol:active { transform: translateY(1px); }
+/* Nisan (user 2026-10-26): .tautan, gaya tautan "See how it works ›" yang dihapus; tidak ada pemakai lain. */
+
+/* ── Tombol papan ketik (halaman terang) ─────────────────────────────── */
+/* Nisan (user 2026-10-26, tombol 1-7 bagian Fast dihapus): ".tut" & "button.tut" di aturan tombol ini. */
+kbd { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 14px; border-radius: 11px; background: #fff; color: var(--fg); font: 600 15px/1 var(--ui); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 3px 0 #d2d2d7; transition: transform .12s, box-shadow .12s, background .12s; }
+kbd.tekan { transform: translateY(3px); background: #ececf0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 0 #d2d2d7; }
+/* Nisan (user 2026-10-26): ".pengantar kbd", tombol Alt & Space di dalam kalimat judul pembuka yang dihapus. */
+.baris-tut { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 30px; color: var(--fg3); font: 500 15px var(--ui); }
+
+/* ── Pembuka: desktop penuh satu layar; judul & tombol sesudah digulir ── */
+/* Nisan (user 2026-10-27, "bagian 1 gausah ada ngecilin gitu jadi scroll biasa aja"): desktop pembuka sticky di dalam
+   .hero setinggi dua layar, yang mengecil jadi layar bersudut bulat selama halaman kosong (.hero-kosong) digulir masuk
+   (kecilkanPembuka()). Kembali digulir biasa. */
+/* Wallpaper pembuka = --wp seperti desktop lain. Sempat vector flat (wallpaper-flat.svg: pemandangan gunung, lalu foto
+   lavender yang digambar ulang), dibatalkan (user 2026-10-27, "kembalikan seperti sebelumnya"). */
+.hero-desk { position: relative; height: 100vh; height: 100svh; min-height: 440px; overflow: hidden; background: var(--wp) center / cover no-repeat; }
+/* Nisan (user 2026-10-27, "hapus gradasi yang tadi aku minta"): .hero-desk::before, wallpaper yang memudar ke --bg2 di
+   sepertiga bawah sebagai peralihan ke #cepat. */
+/* Kalimat pembuka (user 2026-10-27, "animasi jangan dulu langsung dimulai tapi ada tulisan ... langsung di si laptop
+   nya"): sekali saat halaman dibuka, di tengah desktop, lalu pudar dan peragaan mulai (hero()). Di atas desktop tapi di
+   bawah halaman putih akhir (10). */
+/* Sesudah kalimatnya tampil, logo + "Sevdeck" membuka dari lebar 0 di kanannya (user 2026-10-27, "logo septadeck itu
+   muncul nya jangan di kiri tapi di kanan"), jadi kalimat terdorong ke kiri dengan mulus. KOREKSI: dulu "di sebelah
+   kiri nya muncul logo septadeck sama tulisannya" (merek sebelum kalimat). Logo tanpa ubin hitam, versi garis putih
+   tanpa isi (#logoGaris; KOREKSI 2026-10-27: dulu #logo berwarna), tingginya mengikuti huruf. Huruf diperkecil supaya merek + kalimat muat sebaris. KOREKSI: dulu satu
+   kalimat saja, "font-size: clamp(36px, 5.4vw, 80px)". */
+.hero-intro { position: absolute; inset: 0; z-index: 9; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; align-items: center; margin: 0; padding: 24px; text-align: center; pointer-events: none; font-weight: 800; font-size: clamp(26px, 3.6vw, 56px); letter-spacing: -0.035em; line-height: 1.1; color: #fff; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.28); opacity: 0; translate: 0 16px; transition: opacity .8s ease, translate 1s var(--gerak); }
+.hero-intro.tampil { opacity: 1; translate: 0 0; }
+.hero-intro.pergi { opacity: 0; translate: 0 -12px; }
+.intro-buka { display: grid; grid-template-columns: 0fr; transition: grid-template-columns .9s var(--gerak); }
+/* Kotak berwarna di belakang merek (user 2026-10-27, "kaya ada kotak berwarna gitu di bg nya"): bayangan teks (30px) &
+   logo terpotong overflow: hidden tepat di tepi kotaknya, jadi tepi bayangan tampak sebagai persegi. Sekarang kotak
+   pemotongnya diperlebar 40px ke segala arah (padding) lalu dikembalikan dengan margin negatif yang sama, jadi
+   bayangan muat utuh tapi lebar yang membuka dari 0 tetap sama. KOREKSI: dulu "padding-right: .4em" tanpa ruang
+   bayangan. Jarak ke kalimat jadi margin kiri logo, supaya ikut terlipat. */
+/* Jarak huruf merek -0.01em (seperti .merek di header): -0.035em warisan kalimat membuat huruf 800 "Sevdeck" saling
+   menempel (user 2026-10-27, "tulisan septadeck nimpa"). */
+.intro-merek { min-width: 0; overflow: hidden; display: flex; align-items: center; gap: .3em; padding: 40px; margin: -40px; white-space: nowrap; letter-spacing: -0.01em; opacity: 0; transition: opacity .6s .25s; }
+.intro-merek svg { height: .78em; width: 1.86em; flex: none; margin-left: .45em; filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.25)); } /* #logo 816 x 342 */
+/* Kelas keadaan "bermerek", bukan "merek": .merek sudah dipakai ikon pil navigasi (40 x 40), dan sempat membuat seluruh
+   kalimat pembuka menciut ke pojok kiri atas. */
+.hero-intro.bermerek .intro-buka { grid-template-columns: 1fr; }
+.hero-intro.bermerek .intro-merek { opacity: 1; }
+.intro-kalimat { font-weight: 600; white-space: nowrap; }
+/* Merek yang muncul pelan di kiri atas pembuka sesudah kalimat pembuka hilang, lalu menetap di layar sepanjang halaman
+   (fixed; KOREKSI 2026-10-27: dulu absolute di dalam desktop pembuka) sebagai pengganti header; bentuknya sama dengan
+   .intro-merek, lebih kecil, tanpa bayangan apa pun (user 2026-10-27, "jangan dikasih shadow apapun pas disana").
+   Putih di atas desktop berwallpaper, berangsur hitam di atas halaman putih (.gelap, lihat .situs-atas) (user
+   2026-10-27, "berubah warna jadi hitam ... jangan kaya instan gitu tapi kaya dia bereaksi"). KOREKSI: sempat terbang ke
+   sini dari logo kalimat (transform .9s) dengan text-shadow & drop-shadow. z-index 9 (sekarang di .situs-atas): di
+   bawah halaman putih akhir pembuka (10), jadi tertutup bersama desktop. */
+.hero-merek { display: flex; align-items: center; gap: .3em; font-weight: 800; font-size: 22px; letter-spacing: -0.01em; color: #fff; }
+.situs-atas > .hero-merek.gelap { color: var(--fg); } /* .gelap per anak .situs-atas, lihat cekGulir() */
+.hero-merek svg { height: .78em; width: 1.86em; flex: none; }
+/* Baris atas (user 2026-10-27, eksperimen 3, "si logo ... munculnya itu dari bawah ke atas gitu tapi elegan jadi aga
+   pelan dikit"): logo naik 22 px sambil muncul sesudah kalimat pembuka hilang (.tetap, hero()). KOREKSI: dulu logo
+   ("position: fixed" di .hero-merek) yang cuma memudar ("transition: opacity .8s ease").
+   Nisan (user 2026-10-27, "hapus yang fitur fitur tadi dan donwload"): .situs-fitur, enam nama fitur berjarak rata di
+   tengah baris, dan .situs-unduh, tombol Download biru di kanan, yang naik bersamaan dengan logo. */
+.situs-atas { position: fixed; left: 0; right: 0; top: max(clamp(18px, 2.4vh, 28px), env(safe-area-inset-top, 0px)); z-index: 9; display: flex; align-items: center; padding-inline: clamp(20px, 2.4vw, 36px); pointer-events: none; }
+.situs-atas > * { opacity: 0; translate: 0 22px; transition: opacity 1.1s ease, translate 1.4s var(--gerak), color .6s ease .05s, background .6s ease, max-width .8s var(--gerak), margin .8s var(--gerak); }
+.situs-atas.tetap > * { opacity: 1; translate: 0 0; }
+/* Dua header terpisah (user 2026-10-28, "transisi si tulisannya jangan dari kanan ke kiri gitu ... walaupun si logo
+   bagian pertama belum muncul, pas user scroll kebawah itu header udah ada, jadi kaya kepisah gitu header bagian
+   pertama sama kedua"): .situs-atas cuma milik pembuka (logo | keterangan), memudar pergi begitu pembuka digulir
+   lewat (html.lewat-pembuka, cekGulir()); .kepala-apung header mengambang bagian berikutnya, berdiri sendiri, jadi
+   ada walau logo pembuka belum muncul. KOREKSI: dulu satu header yang berubah bentuk: garis & keterangan menyempit ke
+   lebar 0 sementara nama fitur + Download memudar masuk (tulisannya tampak bergeser dari kanan ke kiri), lalu jadi
+   kaca mengambang di tempat dengan munculan naik (animate()).
+   Warna pembuka: .gelap di tiap anak .situs-atas = yang ada tepat di bawah anak itu bukan gambar, jadi menghitam; di
+   atas wallpaper putih (user 2026-10-27, "harus peka juga dong kalau lagi di yang bagian gambar itu harus putih"). */
+.situs-atas { transition: opacity .45s ease, visibility 0s 0s; }
+.lewat-pembuka .situs-atas { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s .35s; }
+.situs-garis { flex: none; width: 1px; height: 22px; margin-inline: 16px; background: rgba(255, 255, 255, 0.6); }
+.situs-atas > .situs-garis.gelap { background: rgba(0, 0, 0, 0.2); }
+/* Header mengambang sesudah pembuka: kaca putih buram bersudut bulat, tulisannya selalu gelap (warna statis), dan
+   kacanya yang menanggapi apa yang ada di belakangnya (backdrop-filter) (user 2026-10-28, "header nya jadi kaya
+   floating gitu terus warna nya jadinya statis aja gitu, dibikin si bar nya juga bereaksi ke bg dibelakangnya").
+   Muncul naik dari bawah sambil memudar, pergi dengan arah sebaliknya (user 2026-10-28, "muncul smooth dari bawah gitu
+   ke atas"). Nama fitur & Download diam di tempatnya, ikut gerak header saja. */
+.kepala-apung { position: fixed; top: max(14px, env(safe-area-inset-top, 0px)); left: max(16px, calc((100vw - 1240px) / 2)); right: max(16px, calc((100vw - 1240px) / 2)); z-index: 11; display: flex; align-items: center; gap: clamp(20px, 3vw, 48px); height: 58px; padding-inline: 22px 11px; border-radius: 20px; background: rgba(255, 255, 255, 0.72); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.1); opacity: 0; visibility: hidden; translate: 0 26px; pointer-events: none; transition: opacity .4s ease, translate .5s var(--gerak), visibility 0s .5s; }
+.lewat-pembuka .kepala-apung { opacity: 1; visibility: visible; translate: 0 0; pointer-events: auto; transition: opacity .7s ease .1s, translate .95s var(--gerak) .1s; }
+.kepala-apung .hero-merek { color: var(--fg); text-decoration: none; }
+/* Tiga nama berkumpul di tengah header dengan jarak tetap, bukan disebar rata selebar header. KOREKSI (user
+   2026-10-28, tinggal tiga nama): dulu "justify-content: space-evenly; gap: 16px" untuk tujuh nama. */
+.situs-fitur { flex: 1; display: flex; justify-content: center; gap: clamp(28px, 4vw, 56px); font: 700 15px var(--tampil); letter-spacing: -0.01em; color: var(--fg); white-space: nowrap; }
+/* Download bergaris dengan ikon unduh di kiri tulisannya (user 2026-10-27, "download kasih icon juga di kiri"). */
+.situs-unduh { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 18px 0 15px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px currentColor; color: var(--fg); font: 700 15px var(--tampil); letter-spacing: -0.01em; text-decoration: none; transition: background .2s; }
+.situs-unduh svg { width: 16px; height: 16px; flex: none; }
+.situs-unduh:hover { background: rgba(127, 127, 127, 0.14); }
+/* Nama fitur jadi tautan ke bagiannya (user 2026-10-27, eksperimen 3, "pas di klik bisa scroll langsung gitu ke bagian
+   itu"). KOREKSI: dulu span tulisan saja. */
+.situs-fitur a { color: inherit; text-decoration: none; transition: opacity .2s; }
+.situs-fitur a:hover { opacity: .6; }
+/* Tiga nama tidak muat sebaris di bawah 700; tetap jadi pengisi supaya Download di kanan. KOREKSI: dulu batasnya
+   1099 untuk tujuh nama. */
+@media (max-width: 699px) { .situs-fitur { visibility: hidden; } }
+@media (max-width: 700px) { .intro-kalimat { white-space: normal; } }
+/* Desktop "logis" 1:1; di layar yang lebih sempit dari bar, seluruh desktop diperkecil bersama (tataHero()). */
+.skala { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; font-family: var(--ui); --u: 1px; }
+.skala .hero-mock { position: absolute; z-index: 5; }
+.skala .win { z-index: 2; }
+.skala .taskbar { z-index: 7; transition: translate .25s var(--gerak); }
+/* Taskbar pembuka "auto-hide" (user 2026-10-26, "kalau misal cursor ga kebawah gitu dia ga muncul"): turun keluar layar,
+   sisa garis 2 piksel seperti Windows; naik lagi lewat periksaTaskbar(). */
+.skala .taskbar.tersembunyi { translate: 0 calc(100% - 2px); }
+.skala .menu-tray { z-index: 8; }
+/* Akhir peragaan pembuka (user 2026-10-26, "kalau animasi semua udah beres kaya ada transisi gitu jadi bg nya putih
+   gitu jadi kaya page biasa gitu nutup si animasi"): halaman putih memudar menutup desktop, isinya naik menyusul
+   berurutan. Replay memudarkannya lagi dan peragaan mulai dari awal. */
+/* z-index 10: di atas desktop (.skala sudah konteks tumpuk sendiri karena transform) tapi di bawah navigasi (20), jadi
+   header tetap terlihat. KOREKSI (user 2026-10-26, "header jangan ketutupan"): dulu 40, menutup navigasi.
+   (Header sudah dihapus, 2026-10-27; logo kiri atas (.hero-merek, 9) ada di bawah halaman putih ini.)
+   Nisan (user 2026-10-27, "hapus gradasi"): latar putih yang memudar ke --bg2 di bawah
+   ("linear-gradient(var(--bg) 60%, var(--bg2))"); kembali putih polos. */
+.hero-akhir { position: absolute; inset: 0; z-index: 10; display: grid; place-content: center; justify-items: center; text-align: center; padding: 24px 20px; /* KOREKSI (2026-10-27): dulu 64px 20px 24px, memberi tempat header atas */ background: var(--bg); opacity: 0; visibility: hidden; transition: opacity .7s ease, visibility 0s .7s; }
+.hero-akhir.tampil { opacity: 1; visibility: visible; transition: opacity .7s ease; }
+.hero-akhir > * { opacity: 0; translate: 0 18px; transition: opacity .5s, translate .7s var(--gerak); }
+.hero-akhir.tampil > * { opacity: 1; translate: 0 0; }
+.hero-akhir.tampil > :nth-child(1) { transition-delay: .35s; }
+.hero-akhir.tampil > :nth-child(2) { transition-delay: .45s; }
+.hero-akhir.tampil > :nth-child(3) { transition-delay: .55s; }
+.hero-akhir.tampil > :nth-child(4) { transition-delay: .65s; }
+.hero-akhir.tampil > :nth-child(5) { transition-delay: 1s; }
+.gulir-bawah { position: absolute; left: 50%; bottom: clamp(20px, 4vh, 40px); margin-left: -24px; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--fg2); box-shadow: inset 0 0 0 1.5px #d2d2d7; transition: opacity .5s, translate .7s var(--gerak), color .2s, box-shadow .2s; }
+.gulir-bawah:hover { color: var(--fg); box-shadow: inset 0 0 0 1.5px #a1a1a6; }
+.gulir-bawah svg { width: 20px; height: 20px; animation: ayun 1.8s ease-in-out infinite; }
+@keyframes ayun { 0%, 100% { translate: 0 -2px; } 50% { translate: 0 3px; } }
+/* Tulisan di atas lingkaran, muncul sesudah lingkarannya (1s) (user 2026-10-26, "muncul tulisan kaya scroll kebawah
+   ... disingkat gitu tapi artinya dan maksudnya sama"). Bukan anak langsung .hero-akhir, jadi jedanya diatur sendiri. */
+.gulir-teks { position: absolute; left: 50%; bottom: calc(100% + 12px); white-space: nowrap; font: 500 14px var(--ui); color: var(--fg2); opacity: 0; translate: -50% 6px; transition: opacity .5s, translate .7s var(--gerak); }
+.hero-akhir.tampil .gulir-teks { opacity: 1; translate: -50% 0; transition-delay: 1.6s; }
+/* Drag and drop (lihat komentar HTML di atas #kenalSeret): layar putih penjelasan, judul seukuran judul halaman akhir
+   pembuka, ajakan menggulir yang sama dengan pembuka (tulisannya langsung tampil); lalu desktop selayar dengan
+   wallpaper pembuka. Isi desktopnya memakai rupa yang sama dengan pembuka (.skala, .win, .hero-mock, .hantu-h,
+   .kursor-h), ditata pasangSeret(). */
+.kenal { position: relative; min-height: 100vh; min-height: 100svh; display: grid; place-content: center; justify-items: center; gap: 18px; padding: 96px 24px 150px; text-align: center; background: var(--bg); scroll-snap-align: start; }
+.kenal h2 { font-size: clamp(40px, min(6vw, 10vh), 76px); }
+.kenal .pengantar { max-width: 34ch; }
+.kenal .gulir-teks { opacity: 1; translate: -50% 0; }
+/* Nisan (user 2026-10-27, "hapus animasinya ... jadi clean aja"): .kenal-panggung, panggung peragaan seret di bawah
+   kalimat halaman putih. */
+/* Dipakai juga oleh pasangan halaman profil (#kenalProfil, #profilDesk) dan profil otomatis (#kenalOto, #oto), yang
+   susunannya sama. KOREKSI: dulu juga jenis item (#kenalJenis, #jenis), sudah dihapus. */
+.seret-hal { scroll-snap-align: start; }
+.seret-desk { position: relative; height: 100vh; height: 100svh; min-height: 440px; overflow: hidden; background: var(--wp) center / cover no-repeat; }
+/* Tulisan besar di bawah bar desktop jenis item & profil (pasangDesktopBar()), rupa sama dengan keterangan pembuka,
+   lebih besar. */
+.jenis-label { position: absolute; left: 0; right: 0; margin: 0; text-align: center; font: 700 30px var(--tampil); letter-spacing: -0.02em; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 2px 18px rgba(0, 0, 0, 0.3); transition: opacity .25s, translate .35s var(--gerak); }
+.jenis-label.pergi { opacity: 0; translate: 0 8px; }
+/* Nisan (user 2026-10-28, "hapus semua bagian ini"): .lainnya, .lainnya-daftar, .lainnya-panggung (halaman fitur lainnya), .jenis-tulis, .warna-baris, .warna-bulat. */
+.skala .seret-mock { height: auto; } /* cuma bar, tanpa deretan profil & panel di atasnya */
+.ikon-akhir { width: clamp(84px, 14vh, 140px); height: auto; margin-bottom: clamp(18px, 3.5vh, 32px); filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.18)); }
+.hero-akhir h1 { font-size: clamp(40px, min(6vw, 10vh), 76px); }
+.hero-akhir .cta { margin-top: clamp(20px, 4vh, 36px); }
+.tombol.kedua { gap: 8px; border: 0; cursor: pointer; font-family: inherit; background: #e8e8ed; color: var(--fg); }
+.tombol.kedua:hover { background: #dcdce1; }
+.tombol.kedua svg { width: 17px; height: 17px; }
+/* Nisan (user 2026-10-26, "hapus bagian ini"): .hero-teks, judul & Download sesudah desktop pembuka. */
+.cta { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 14px 30px; margin-top: 34px; }
+
+/* Keterangan langkah yang sedang diperagakan dan, di sebelah kanannya dalam satu baris, tanda tombol yang ditekan
+   (seperti rekaman layar). Keduanya muncul & pergi dengan gerak yang sama; tanda tombol melebar dari lebar 0
+   (grid 0fr -> 1fr), jadi barisnya tetap di tengah tanpa melompat. */
+/* Tanda tombol di tengah bawah, turun dekat tepi karena taskbar disembunyikan (user 2026-10-27, "keyboard itu jadi aga
+   kebawah, tapi hindari tabrakan sama taskbar"): naik setinggi taskbar (48) selama taskbar tampil. KOREKSI: dulu
+   "bottom: 66px" tetap, satu baris dengan keterangan. */
+.bawah-sim { position: absolute; left: 50%; bottom: 20px; translate: -50% 0; z-index: 6; display: flex; align-items: center; transition: translate .25s var(--gerak); }
+.skala:has(> .taskbar:not(.tersembunyi)) .bawah-sim { translate: -50% -48px; }
+.ketukan { background: rgba(255, 255, 255, 0.8); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 12px 30px rgba(0, 0, 0, 0.14); color: #1d1d1f; opacity: 0; translate: 0 10px; transition: opacity .25s, translate .35s var(--gerak); }
+/* Keterangan langkah di tengah atas, tanpa latar (user 2026-10-27, "pindah jadi keatas tanpa bg ... muncul secara
+   modern tapi berkelanjutan"): tiap kata muncul bergiliran dari kabur ke tajam, dan kalimat lama pergi kata demi kata
+   ke atas sebelum yang baru masuk, jadi pergantiannya mengalir, bukan kotak yang muncul-hilang. KOREKSI: dulu kotak
+   kaca putih 56 tinggi di samping tanda tombol, "opacity: 0; translate: 0 10px" lalu .tampil. */
+/* Keterangan pindah ke baris atas, rata kiri di sebelah logo dengan garis tipis di antaranya (user 2026-10-27,
+   eksperimen 3, "tulisan penjelasan yang dibagian atas muncul lagi, tapi alignment nya dari kiri ... ada garis halus
+   kaya | gitu jadi kepisah gitu si tulisan septadeck sama penjelasannya, sejajarin"): ukuran hurufnya sama dengan
+   logo (22) supaya sebaris; menyempit ke lebar 0 begitu pembuka digulir lewat (lihat .situs-atas). KOREKSI: dulu di
+   dalam desktop pembuka, "position: absolute; top: 28px; left: 50%; translate: -50% 0; z-index: 6", lalu sempat
+   disembunyikan ("display: none"). */
+/* Tanpa bayangan, dan tiap kata naik dari balik garis bawahnya lalu pergi ke atas melewati garis atasnya (clip-path
+   ikut bergeser sejauh geserannya, jadi kata seperti keluar-masuk dari celah), tanpa kabur (user 2026-10-27, "jangan
+   kasih shadow terus animasinya coba jangan kaya ada shadow gitu fadein fade out nya, kaya ini tu bener bener
+   modern"). Sisi kiri-kanan & atas-bawah clip dilonggarkan 20% supaya ujung huruf tidak terpotong saat diam.
+   KOREKSI: dulu "text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 2px 18px rgba(0, 0, 0, 0.3)", masuk "from { opacity:
+   0; filter: blur(8px); translate: 0 10px; }", pergi "opacity: 0; filter: blur(6px); translate: 0 -8px". */
+.keterangan { min-width: 0; max-width: 60vw; margin: 0; white-space: nowrap; font: 600 22px var(--tampil); letter-spacing: -0.015em; color: #fff; } /* transisinya dari .situs-atas > * */
+.situs-atas > .keterangan.gelap { color: var(--fg); }
+/* .3s: keterangan() menunggu 300 ms (+25 per kata) sebelum kalimat baru menggantikan yang lama. */
+.keterangan .kata { display: inline-block; clip-path: inset(-20% -20% -20% -20%); animation: kataMasuk .6s var(--gerak) backwards; transition: translate .3s cubic-bezier(.55, 0, .75, .3), clip-path .3s cubic-bezier(.55, 0, .75, .3); }
+.keterangan .kata.pergi { translate: 0 -100%; clip-path: inset(100% -20% -20% -20%); }
+@keyframes kataMasuk { from { translate: 0 100%; clip-path: inset(-20% -20% 100% -20%); } }
+.lipat { display: grid; grid-template-columns: 0fr; transition: grid-template-columns .4s var(--gerak); }
+.lipat.buka { grid-template-columns: 1fr; }
+.lipat > div { min-width: 0; overflow: hidden; padding: 24px 24px 24px 0; margin: -24px -24px -24px 0; }
+.ketukan { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 10px; border-radius: 14px; width: max-content; }
+.lipat.buka .ketukan { opacity: 1; translate: 0 0; }
+.ketukan .kc { min-width: 40px; height: 36px; padding: 0 12px; display: grid; place-items: center; border-radius: 8px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 2px 0 #d2d2d7; font-size: 15px; font-weight: 600; transition: translate .1s, background .1s, box-shadow .1s; }
+.ketukan .kc.tekan { translate: 0 2px; background: #ececf0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 0 #d2d2d7; }
+.ketukan .plus { color: rgba(0, 0, 0, 0.45); font-size: 15px; }
+.kursor-h { position: absolute; left: 0; top: 0; width: 14px; height: auto; z-index: 30; will-change: transform; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
+.kursor-h path { transition: transform .1s; transform-origin: 1px 1px; }
+.kursor-h.klik path { transform: scale(.86); }
+/* Gambar seret Windows: ikon & nama di kotak pilihan biru tipis, ikut kursor; di atas Explorer muncul keterangan
+   jatuhnya ("+ Copy to ..."). Sevdeck selalu Salin, tidak pernah Pindah (berkas.cpp seretKeluar()). */
+/* Titik nol = ujung kursor; ikon seret ditempatkan seretKeluar() di sekitarnya, di bawah kursor (z-index 29 < 30). */
+.hantu-h { position: absolute; left: 0; top: 0; z-index: 29; font-size: 12px; color: #1a1a1a; opacity: 0; transition: opacity .15s; will-change: transform; }
+.hantu-h.tampil { opacity: 1; }
+.hantu-h .ikon-seret { position: absolute; display: grid; place-items: center; opacity: .92; }
+.hantu-h .ikon-seret svg { display: block; }
+.hantu-h .jatuh svg { width: 12px; height: 12px; }
+.hantu-h .jatuh { position: absolute; left: 16px; top: 24px; display: none; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 3px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.12); white-space: nowrap; }
+.hantu-h .jatuh b { color: #0067c0; font-weight: 600; }
+.hantu-h.di-atas .jatuh { display: flex; }
+/* Selama item ditarik keluar, seluruh bar memudar ke 30% (Ukuran::tembusSeretKeluar). */
+.hero-mock { transition: opacity .25s, transform .45s var(--gerak); }
+.hero-mock.tembus { opacity: .3; }
+/* Panel tambah di pembuka: di atas bar (panelJarak 19), menjorok 47 px di kiri & kanan; deretan profil & pil nama
+   pergi, pil petunjuk muncul di bawah bar. Bar & panel digeser (dan di layar pendek diperkecil) supaya muat. */
+.hero-mock .panel-h { left: -47px; top: -399px; opacity: 0; translate: 0 14px; transition: opacity .25s, translate .35s var(--gerak); }
+.hero-mock.mode-panel .panel-h { opacity: 1; translate: 0 0; }
+.hero-mock.mode-panel .deretan { opacity: 0; translate: 0 10px; }
+.hero-mock.mode-panel .pilnama { opacity: 0; }
+.petunjuk-h { position: absolute; left: 442px; top: 218px; transform: translateX(-50%); opacity: 0; transition: opacity .25s; }
+.hero-mock.mode-panel .petunjuk-h { opacity: 1; }
+.file-konfirm { display: none; }
+.pane.konfirm .zona { display: none; }
+.pane.konfirm .file-konfirm { display: block; }
+.pasang.redup-p { opacity: .4; }
+.berkas-besar svg { width: 64px; height: auto; display: block; }
+/* Dialog Open Windows (mode terang), dibuka tombol "Browse in Explorer…". */
+.skala .dialog-h { z-index: 9; }
+.dialog-h .ex-badan { height: calc(100% - 32px - 40px - 40px - 86px); }
+.dlg-kaki { height: 86px; padding: 12px 16px; display: grid; gap: 12px; background: #f3f3f3; border-top: 1px solid rgba(0, 0, 0, 0.06); }
+.dlg-nama { display: flex; align-items: center; gap: 10px; }
+.dlg-isian { flex: 1; height: 28px; display: flex; align-items: center; padding: 0 8px; background: #fff; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.35); }
+.dlg-jenis { width: 160px; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: #fff; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.dlg-tombol { display: flex; justify-content: flex-end; gap: 8px; }
+.dlg-tombol span { width: 110px; height: 30px; display: grid; place-items: center; border-radius: 4px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); transition: background .1s; }
+.dlg-tombol .dlg-buka { background: #005fb8; color: #fff; box-shadow: none; }
+.dlg-tombol .dlg-buka.tekan { background: #004c99; }
+.tombol-putih.tekan { filter: brightness(.9); }
+.ex-baris.baru { animation: barisBaru .45s var(--gerak) both; }
+@keyframes barisBaru { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
+
+/* Jendela Windows 11 (mode terang) yang dibuka dari bar. */
+.win { position: absolute; overflow: hidden; border-radius: 8px; background: #ffffff; color: #1a1a1a; font-size: 12px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 26px 70px rgba(0, 0, 0, 0.22), 0 6px 18px rgba(0, 0, 0, 0.1); opacity: 0; scale: .94; transition: opacity .18s ease-out, scale .24s cubic-bezier(.1, .9, .2, 1); }
+.win.buka { opacity: 1; scale: 1; }
+.win-judul { display: flex; align-items: center; height: 32px; background: #f3f3f3; }
+.win-judul .nama { display: flex; align-items: center; gap: 8px; padding-left: 12px; font-size: 12px; }
+.win-judul .nama svg { width: 16px; height: 16px; }
+.kontrol { margin-left: auto; display: flex; height: 100%; }
+.kontrol span { width: 46px; display: grid; place-items: center; transition: background .12s; }
+.kontrol svg { width: 10px; height: 10px; stroke: #e8e8e8; fill: none; stroke-width: 1; }
+.win .kontrol svg { stroke: #1a1a1a; }
+.kontrol .tutup.sorot { background: #c42b1c; }
+.win .kontrol .tutup.sorot svg { stroke: #fff; }
+.ex-alat, .ex-alamat { display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 12px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); background: #f9f9f9; color: #1a1a1a; }
+.ex-alat .baru { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 4px; background: rgba(0, 0, 0, 0.05); }
+.ex-alat .sela { width: 1px; height: 18px; background: rgba(0, 0, 0, 0.1); }
+.ex-alat svg, .ex-alamat svg { width: 15px; height: 15px; stroke: #3a3a3a; fill: none; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.ex-alamat .jalur svg { stroke: none; }
+.ex-alamat .jalur { flex: 1; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 4px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.ex-alamat .cari { width: 30%; height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 4px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); color: #6e6e6e; white-space: nowrap; overflow: hidden; }
+.ex-badan { display: flex; height: calc(100% - 32px - 40px - 40px - 26px); }
+.ex-sisi { width: 168px; flex: none; padding: 8px 6px; border-right: 1px solid rgba(0, 0, 0, 0.06); display: grid; align-content: start; gap: 1px; }
+.ex-sisi span { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 10px; border-radius: 4px; }
+.ex-sisi span.aktif { background: rgba(0, 0, 0, 0.05); }
+.ex-sisi i { width: 15px; height: 15px; border-radius: 3px; flex: none; }
+.ex-sisi hr { border: 0; height: 1px; background: rgba(0, 0, 0, 0.08); margin: 6px 8px; }
+.ex-daftar { flex: 1; padding: 6px 10px; min-width: 0; overflow: hidden; }
+.ex-baris { display: grid; grid-template-columns: minmax(0, 2.4fr) 1.4fr 1.1fr .7fr; align-items: center; gap: 10px; height: 30px; padding: 0 8px; border-radius: 4px; white-space: nowrap; transition: background .12s; }
+.ex-baris > span { overflow: hidden; text-overflow: ellipsis; }
+.ex-baris > span:first-child { display: flex; align-items: center; gap: 9px; }
+.ex-baris svg { width: 16px; height: 16px; flex: none; }
+.ex-baris.kepala { color: #5f5f5f; height: 28px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); border-radius: 0; margin-bottom: 4px; }
+/* Bukan .abu: nama itu milik latar abu bagian halaman (.abu { background }). */
+.ex-baris .ex-sek { color: #5f5f5f; }
+.ex-baris.sorot { background: rgba(0, 0, 0, 0.04); }
+.ex-baris.pilih { background: rgba(0, 95, 184, 0.1); box-shadow: inset 0 0 0 1px rgba(0, 95, 184, 0.35); }
+.ex-status { height: 26px; display: flex; align-items: center; padding: 0 14px; color: #5f5f5f; border-top: 1px solid rgba(0, 0, 0, 0.06); }
+.br-tab { display: flex; align-items: flex-end; height: 38px; padding-left: 8px; background: #e6e8eb; }
+.br-tab .tab-b { display: flex; align-items: center; gap: 8px; width: 220px; height: 30px; padding: 0 10px; border-radius: 8px 8px 0 0; background: #ffffff; }
+.br-tab .tab-b b { font-weight: 400; flex: 1; }
+.br-tab .fav { width: 16px; height: 16px; border-radius: 4px; background: #1d6b46; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+.br-tab .baru-b { width: 28px; height: 30px; display: grid; place-items: center; color: #5f5f5f; font-size: 16px; }
+.br-tab .kontrol { align-self: stretch; }
+.br-alat { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; background: #ffffff; border-bottom: 1px solid rgba(0, 0, 0, 0.08); color: #3a3a3a; }
+.br-alat svg { width: 16px; height: 16px; stroke: #3a3a3a; fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.br-alat .alamat { flex: 1; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px; border-radius: 15px; background: #eef0f2; color: #1a1a1a; }
+.br-alat .alamat i { font-style: normal; color: #6e6e6e; }
+.br-alat .orang { width: 24px; height: 24px; border-radius: 50%; background: #e8a93a; color: #1d1d1f; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.br-hal { height: calc(100% - 38px - 40px); background: #f6f7f8; color: #1d1d1f; overflow: hidden; }
+/* Campus Portal (BROWSER()): menu hijau kampus di kiri, isi di kanan. Nisan (user 2026-10-26, portal dilengkapi):
+   .br-kepala, .br-isi, .br-kartu, pita menu atas dan tiga kartu portal lama. */
+.pt { display: grid; grid-template-columns: 168px minmax(0, 1fr); font-family: var(--ui); }
+.pt-sisi { background: #17573a; color: #e7f2ec; padding: 14px 10px; display: grid; align-content: start; gap: 2px; }
+.pt-merek { display: flex; align-items: center; gap: 8px; padding: 0 6px 12px; font-size: 13px; }
+.pt-merek .fav { width: 20px; height: 20px; border-radius: 5px; background: #fff; color: #17573a; display: grid; place-items: center; font-size: 11px; font-weight: 800; }
+.pt-menu { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: rgba(231, 242, 236, 0.82); }
+.pt-menu i { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid currentColor; opacity: .7; }
+.pt-menu em { margin-left: auto; min-width: 18px; height: 16px; padding: 0 5px; border-radius: 8px; background: #f2b134; color: #1d1d1f; font: 700 10px/16px var(--ui); text-align: center; }
+.pt-menu.aktif { background: rgba(255, 255, 255, 0.14); color: #fff; font-weight: 600; }
+.pt-utama { padding: 12px 18px; display: grid; align-content: start; gap: 11px; overflow: hidden; }
+.pt-atas { display: flex; align-items: center; gap: 12px; color: #6e6e73; font-size: 11px; }
+.pt-cari { margin-left: auto; display: flex; align-items: center; gap: 6px; width: 210px; height: 26px; padding: 0 10px; border-radius: 13px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.pt-cari svg { width: 12px; height: 12px; fill: none; stroke: #8e8e93; stroke-width: 1.5; }
+.pt-orang { width: 26px; height: 26px; border-radius: 50%; background: #e8a93a; color: #1d1d1f; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.pt-salam { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.pt-salam h3 { margin: 0; font-size: 18px; font-weight: 700; color: #1d1d1f; }
+.pt-salam p { margin: 2px 0 0; font-size: 11px; color: #5b5b60; }
+.pt-tombol { padding: 6px 12px; border-radius: 6px; background: #17573a; color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.pt-angka { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.pt-angka > div, .pt-kartu { background: #fff; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.03); }
+.pt-angka > div { padding: 9px 12px; }
+.pt-angka small, .pt-angka span { display: block; font-size: 10px; color: #6e6e73; }
+.pt-angka b { display: block; margin: 1px 0; font-size: 19px; font-weight: 700; color: #17573a; }
+.pt-dua { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pt-kartu { padding: 10px 12px; display: grid; gap: 8px; align-content: start; }
+.pt-kartu h4 { margin: 0; display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #1d1d1f; }
+.pt-kartu h4 span { font-weight: 500; color: #8e8e93; font-size: 10.5px; }
+.pt-kartu b { display: block; font-size: 11.5px; font-weight: 600; color: #1d1d1f; }
+.pt-kartu small { display: block; font-size: 10.5px; color: #6e6e73; }
+.pt-kelas, .pt-tenggat { display: flex; align-items: center; gap: 10px; }
+.pt-jam { width: 58px; flex: none; font-size: 11px; font-weight: 700; color: #17573a; }
+.pt-kelas em { margin-left: auto; padding: 2px 7px; border-radius: 9px; background: #e3f3ea; color: #17573a; font: 600 10px var(--ui); white-space: nowrap; }
+.pt-tenggat i { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #c7c7cc; }
+.pt-tenggat i.mendesak { background: #e5342b; }
+.pt-tenggat > span { margin-left: auto; font-size: 10.5px; color: #5b5b60; white-space: nowrap; }
+.pt-umum { grid-template-columns: repeat(3, 1fr); column-gap: 14px; }
+.pt-umum h4 { grid-column: 1 / -1; }
+/* Class schedule.pdf di penampil PDF browser bawaan (pembuka, user 2026-10-26): bilah PDF, lalu satu halaman di latar abu. */
+.pdf-alat { display: flex; align-items: center; justify-content: center; gap: 14px; height: 36px; background: #f7f7f8; border-bottom: 1px solid rgba(0, 0, 0, 0.08); color: #3a3a3a; }
+.pdf-alat .hal { padding: 2px 9px; border-radius: 4px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14); }
+.pdf-alat .sela { width: 1px; height: 16px; background: rgba(0, 0, 0, 0.12); }
+.pdf-isi { height: calc(100% - 38px - 40px - 36px); background: #e8e8eb; overflow: hidden; display: flex; justify-content: center; align-items: flex-start; padding-top: 18px; }
+.pdf-hal { width: 580px; background: #fff; padding: 26px 30px 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 8px 22px rgba(0, 0, 0, 0.08); color: #1d1d1f; font-family: var(--ui); }
+.pdf-kepala { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 2px solid #1d3f72; }
+.pdf-kepala small, .pdf-mhs span { display: block; color: #6e6e73; font-size: 10px; letter-spacing: .02em; }
+.pdf-kepala b { display: block; margin: 2px 0; font-size: 17px; font-weight: 700; color: #1d3f72; }
+.pdf-kepala span { font-size: 11px; color: #3a3a3c; }
+.pdf-mhs { text-align: right; }
+.pdf-mhs b { font-size: 13px; color: #1d1d1f; }
+.pdf-tabel { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.pdf-tabel th { text-align: left; padding: 6px 6px; background: #1d3f72; color: #fff; font-weight: 600; }
+.pdf-tabel td { padding: 5px 6px; border-bottom: 1px solid #e3e5ea; white-space: nowrap; }
+.pdf-tabel tr.awal td { border-top: 1px solid #c9ced8; }
+.pdf-tabel td:first-child { font-weight: 600; color: #1d3f72; }
+.pdf-kaki { margin: 10px 0 0; display: flex; justify-content: space-between; color: #6e6e73; font-size: 10px; }
+
+/* ── Taskbar Windows 11. Satuan --u: 1px di pembuka (1:1), 1/1440 lebar desktop di bingkai. ── */
+/* Seperti taskbar Windows 11 sungguhan (screenshot user 2026-10-26): tanpa kolom Cari & widget cuaca; Start lalu app
+   di tengah; di kanan ^, bahasa, wifi-suara-baterai sebagai satu tombol, jam & tanggal dua baris. */
+.taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: calc(48 * var(--u)); display: flex; justify-content: center; align-items: center; background: rgba(30, 30, 33, 0.86); -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); color: #f3f3f3; font-family: var(--ui); }
+.tb-tengah { display: flex; align-items: center; gap: calc(4 * var(--u)); }
+.tb-app { position: relative; width: calc(40 * var(--u)); height: calc(40 * var(--u)); border-radius: calc(6 * var(--u)); display: grid; place-items: center; transition: background .2s; }
+.tb-app svg { width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
+.tb-app::after { content: ""; position: absolute; left: 50%; bottom: calc(2 * var(--u)); width: 0; height: calc(3 * var(--u)); border-radius: calc(2 * var(--u)); background: #9a9a9a; translate: -50% 0; transition: width .25s var(--gerak), background .25s; }
+.tb-app.jalan::after { width: calc(6 * var(--u)); }
+.tb-app.fokus { background: rgba(255, 255, 255, 0.08); }
+.tb-app.fokus::after { width: calc(16 * var(--u)); background: #4cc2ff; }
+/* Nisan (user 2026-10-27): ".tb-mulai svg", ukuran ikon tombol Start yang dihapus dari taskbar. */
+.tray { position: absolute; right: calc(8 * var(--u)); top: 0; bottom: 0; display: flex; align-items: center; gap: calc(2 * var(--u)); }
+.tray > span { display: flex; align-items: center; gap: calc(12 * var(--u)); height: calc(40 * var(--u)); padding: 0 calc(9 * var(--u)); border-radius: calc(6 * var(--u)); transition: background .2s; }
+.tray > span > svg { width: calc(16 * var(--u)); height: calc(16 * var(--u)); display: block; }
+.tray .bahasa { font-size: calc(12 * var(--u)); letter-spacing: .02em; }
+.tray .qs > svg:last-child { width: calc(20 * var(--u)); }
+.tray > .chevron { position: relative; padding: 0 calc(8 * var(--u)); }
+.tray > .chevron > svg { width: calc(14 * var(--u)); }
+.chevron.aktif { background: rgba(255, 255, 255, 0.1); }
+.tray > .jamtb { display: grid; justify-items: end; gap: 0; font-size: calc(12 * var(--u)); line-height: 1.35; padding: 0 calc(10 * var(--u)); white-space: nowrap; }
+
+/* Panah ^: ikon yang tidak disematkan ada di sini (Windows 11), lalu menu ikon Sevdeck (menutray.cpp). */
+.flyout { position: absolute; bottom: calc(100% + 12 * var(--u)); left: 50%; translate: -50% calc(8 * var(--u)); display: grid; grid-template-columns: repeat(3, calc(40 * var(--u))); gap: calc(2 * var(--u)); padding: calc(6 * var(--u)); border-radius: calc(8 * var(--u)); background: rgba(43, 43, 46, 0.97); color: #e6e6e6; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 calc(16 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.35); opacity: 0; pointer-events: none; transition: opacity .2s, translate .28s var(--gerak); }
+.flyout.buka { opacity: 1; translate: -50% 0; }
+.flyout > span { position: relative; height: calc(40 * var(--u)); display: grid; place-items: center; border-radius: calc(6 * var(--u)); transition: background .2s, box-shadow .3s; }
+.flyout svg { width: calc(18 * var(--u)); height: calc(18 * var(--u)); display: block; }
+.flyout .septa.sorot { background: rgba(255, 255, 255, 0.12); box-shadow: 0 0 0 calc(2 * var(--u)) #0a84ff; }
+.tooltip { position: absolute; bottom: calc(100% + 10 * var(--u)); left: 50%; translate: -50% calc(4 * var(--u)); white-space: nowrap; padding: calc(5 * var(--u)) calc(10 * var(--u)); border-radius: calc(5 * var(--u)); background: #2b2b2e; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); font-size: calc(12 * var(--u)); color: #f3f3f3; opacity: 0; transition: opacity .2s, translate .25s var(--gerak); }
+.septa.sorot .tooltip { opacity: 1; translate: -50% 0; }
+/* Ikon Sevdeck yang tersemat di taskbar pembuka: disorot kursor seperti app taskbar lain, dengan tooltip namanya. */
+.tb-app.sorot { background: rgba(255, 255, 255, 0.08); }
+.tb-app.sorot .tooltip { opacity: 1; translate: -50% 0; }
+.menu-tray { position: absolute; right: calc(10 * var(--u)); bottom: calc(60 * var(--u)); width: calc(230 * var(--u)); padding: calc(6 * var(--u)); border-radius: calc(11 * var(--u)); background: #1c1c1e; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); font-size: calc(13 * var(--u)); color: #f5f5f7; transform-origin: bottom right; opacity: 0; scale: .94; transition: opacity .2s, scale .3s var(--gerak); }
+.menu-tray.buka { opacity: 1; scale: 1; }
+.menu-tray .mi { display: flex; justify-content: space-between; align-items: center; height: calc(30 * var(--u)); padding: 0 calc(10 * var(--u)); border-radius: calc(6 * var(--u)); }
+.menu-tray .mi small { font-size: calc(12 * var(--u)); color: #8e8e93; }
+.menu-tray .mi.sorot { background: #0a84ff; }
+.menu-tray .mi.sorot small { color: rgba(245, 245, 247, 0.85); }
+.menu-tray hr { border: 0; height: 1px; background: rgba(255, 255, 255, 0.12); margin: calc(5 * var(--u)) calc(7 * var(--u)); }
+
+/* Simulasi pembuka bermode terang: Windows terang, Sevdeck bertema terang (tema.h, kolom Terang): bar #f2f2f5,
+   kotak putih bergaris rgba(0,0,0,.07), kotak kosong rgba(0,0,0,.2), teks #1d1d1f / #3a3a3c / #6e6e73, pil profil
+   aktif #1d1d1f bertulisan putih, aksen terang per profil; menu ikon putih dengan sorot biru #0a6cf0. */
+.terang { --bar-dasar: #f2f2f5; --kotak-dasar: #ffffff; --bar: var(--bar-dasar); --kotak: var(--kotak-dasar); --label: #3a3a3c; --redup: #6e6e73; --putih: #1d1d1f; }
+.terang .bar { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 24px 60px rgba(0, 0, 0, 0.16); }
+.terang .deretan { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.08); }
+.terang .tab.aktif { color: #fff; }
+.terang .kotak:not(.kosong) { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07); }
+.terang .kotak.kosong { color: #6e6e73; }
+.terang .kotak.kosong .garis rect { stroke: rgba(0, 0, 0, 0.2); }
+.terang .kotak.tekan { background: #ececf0; }
+.terang .huruf { background: #ececf0; color: #1d1d1f; }
+.terang .cahaya { opacity: .16; }
+.terang .taskbar { background: rgba(238, 238, 238, 0.93); box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.07); color: #1a1a1a; }
+.terang .tb-app.fokus, .terang .tb-app.sorot { background: rgba(255, 255, 255, 0.7); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04); }
+.terang .tb-app::after { background: #868686; }
+.terang .tb-app.fokus::after { background: #005fb8; }
+.terang .chevron.aktif { background: rgba(0, 0, 0, 0.06); }
+.terang .flyout { background: rgba(249, 249, 249, 0.97); color: #3a3a3a; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.16); }
+.terang .flyout .septa.sorot { background: rgba(0, 0, 0, 0.05); box-shadow: 0 0 0 2px #0a6cf0; }
+.terang .tooltip { background: #fff; color: #1a1a1a; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.1); }
+.terang .menu-tray { background: #fff; color: #1d1d1f; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.14); }
+.terang .menu-tray .mi small { color: #6e6e73; }
+.terang .menu-tray .mi.sorot { background: #0a6cf0; color: #fff; }
+.terang .menu-tray .mi.sorot small { color: rgba(255, 255, 255, 0.85); }
+.terang .menu-tray hr { background: rgba(0, 0, 0, 0.08); }
+/* Panel tambah tema terang (tema.h): panel putih, isian #f2f2f5, kartu terpilih putih, rel: label #6e6e73, glif
+   #3a3a3c, pil aktif #1d1d1f berglif putih, garis rel = isian; tombol "Browse" #e8e8ed; pil petunjuk putih .9. */
+.terang { --panel-dasar: #ffffff; --isian-dasar: #f2f2f5; --pilih-dasar: #ffffff; --panel: var(--panel-dasar); --isian: var(--isian-dasar); --pilih: var(--pilih-dasar); --kedua: #3a3a3c; --aksen: #0a6cf0;
+  --tint-kadar: 5%; --redup-berwarna: #68686d; /* tema.h latarTerang, teksRedupLatarTerang */ }
+/* Latar berwarna (tema.h latarKini, settings.tintedBackground; user 2026-10-26, "semua profil nya itu tinted
+   backgrounds"): bar, kotak, deretan profil, dan panel tambah dicampur aksen profil aktif (gelap 8%, terang 5%), teks
+   redup diganti abu yang tetap terbaca di atasnya. Pil nama, menu, dan petunjuk tetap netral, seperti di app. --tint
+   berpindah halus seperti --ring saat profil berganti; setelTint() memasangnya. Sesudah .terang supaya menang. */
+@property --tint { syntax: "<color>"; inherits: true; initial-value: #0a84ff; }
+.berwarna { transition: --tint .45s ease; --redup: var(--redup-berwarna);
+  --bar: color-mix(in srgb, var(--bar-dasar), var(--tint) var(--tint-kadar));
+  --kotak: color-mix(in srgb, var(--kotak-dasar), var(--tint) var(--tint-kadar));
+  --panel: color-mix(in srgb, var(--panel-dasar), var(--tint) var(--tint-kadar));
+  --isian: color-mix(in srgb, var(--isian-dasar), var(--tint) var(--tint-kadar));
+  --pilih: color-mix(in srgb, var(--pilih-dasar), var(--tint) var(--tint-kadar)); }
+.terang .panel { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 30px 80px rgba(0, 0, 0, 0.18); }
+.terang .rel { border-right-color: #f2f2f5; }
+.terang .rel-item { color: #6e6e73; }
+.terang .rel-item.aktif { color: #1d1d1f; }
+.terang .rel-item.aktif .ik { color: #fff; }
+.terang .zona { border-color: rgba(0, 0, 0, 0.2); color: #3a3a3c; }
+.terang .tombol-putih { background: #e8e8ed; color: #1d1d1f; }
+.terang .panah path { fill: #fff; }
+.terang .petunjuk { background: rgba(255, 255, 255, 0.9); color: #3a3a3c; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 4px 14px rgba(0, 0, 0, 0.08); }
+.terang .petunjuk b { color: #1d1d1f; }
+
+/* ── Desktop dalam bingkai (bagian Fast, Anything, Profiles, Where) ──── */
+.layar { --tinggi: calc(100vh - 160px); position: relative; width: min(100%, var(--maks, 1080px), calc(var(--tinggi) * 1.6)); aspect-ratio: 16 / 10; margin-inline: auto; border-radius: clamp(10px, 1.6vw, 20px); overflow: hidden; isolation: isolate; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 30px 80px rgba(0, 0, 0, 0.16), 0 8px 24px rgba(0, 0, 0, 0.08); }
+.desk { position: absolute; inset: 0; container-type: size; font-family: var(--ui); --u: calc(100cqw / 1440); }
+.wallpaper { position: absolute; inset: 0; background: var(--wp) center / cover no-repeat; }
+.layar-isi { position: absolute; left: 0; right: 0; top: 0; bottom: calc(48 * var(--u)); display: grid; place-items: center; }
+.layar-isi > .fit { width: 92%; }
+.kursor { position: absolute; left: 0; top: 0; width: calc(16 * var(--u)); height: auto; z-index: 5; pointer-events: none; transition: translate .8s var(--gerak), scale .12s; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)); }
+.kursor.klik { scale: .82; }
+.layar.sudut { --maks: 900px; --tinggi: calc(100vh - 260px); }
+/* Where is it: mulai sebagai desktop utuh, lalu memperbesar ke pojok kanan bawah (.zoom) sebelum ^ diperagakan (user
+   2026-10-26, "asalnya zoom biasa aja dulu kaya desktop awal, nanti dia kaya zoom ini"). Desktop bersandar di pojok
+   kanan bawah dan tumbuh ke kiri atas; isinya ikut membesar karena satuannya --u = lebar desktop. KOREKSI: dulu selalu
+   "width: 240%; height: 240%". */
+/* KOREKSI (user 2026-10-26, "lebih dipercepat ya animasinya 1/4"): dulu 1.1s. */
+.layar.sudut .desk { inset: auto 0 0 auto; width: 100%; height: 100%; transition: width .8s var(--gerak), height .8s var(--gerak); }
+.layar.sudut .kursor { transition-duration: .6s, .12s; } /* translate dipercepat 1/4 (dulu .8s), klik tetap */
+.layar.sudut .desk.zoom { width: 240%; height: 240%; }
+/* Nisan (user 2026-10-26, "hapus bagian ini"): .langkah, daftar langkah bernomor di bawah desktop Where is it. */
+
+/* ── Bagian ───────────────────────────────────────────────────────────── */
+.bagian { padding-block: clamp(88px, 12vw, 160px); }
+.abu { background: var(--bg2); }
+.kepala { display: grid; gap: 22px; margin-bottom: clamp(40px, 5.5vw, 68px); }
+/* Nisan (user 2026-10-26): ".kepala .pengantar { max-width: 40ch; }"; kalimat bagian pindah ke bawah animasi (.penjelas). */
+/* Fokus mata (user 2026-10-26, "jangan sampai judul di satu bagian itu sama ukurannya sama sub judul atau
+   penjelasannya"): judul jelas paling besar (sampai 68), label kecil di atasnya (17), penjelasan jauh lebih kecil &
+   lebih pudar dari judul (17-19). KOREKSI: dulu penjelasan bagian memakai .pengantar umum, sampai 24. */
+/* Skala huruf seluruh halaman (user 2026-10-26, "atur ulang ukuran font nya disemuanya"): judul pembuka sampai 72,
+   judul penutup sampai 62, judul bagian sampai 52; label 16; penjelasan bagian 16-18, pembuka 18-21; tagline 18-20.
+   KOREKSI: dulu 84 / 72 / 68, label 17-21, penjelasan sampai 19 / 24, tagline sampai 22. */
+.bagian .pengantar { font-size: clamp(16px, 1.2vw, 18px); color: var(--fg2); line-height: 1.55; }
+.bagian .alis { font-size: 16px; margin-bottom: 10px; }
+/* Label + judul di atas, animasi di tengah, satu kalimat di bawahnya, semua rata tengah (user 2026-10-26, "bagian atas
+   itu si fast sama judul, bagian bawah animasi itu baru penjelasan maksimal satu kalimat, samain semua"). KOREKSI:
+   dulu kalimat ada di dalam .kepala, di bawah judul, dan bisa sampai tiga kalimat. */
+.bagian .kepala { text-align: center; }
+/* Label sebaris dengan judul, rata garis dasar (user 2026-10-26, "sejajar sama si tulisan judul nya gitu jadi hemat
+   tempat"); di layar sempit label turun ke atas judul lewat wrap. KOREKSI: dulu label di baris sendiri di atas judul. */
+.bagian .kepala > div { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; column-gap: clamp(14px, 1.4vw, 22px); row-gap: 6px; }
+.bagian .kepala .alis { margin: 0; }
+
+/* ── Fitur: daftar teks di kiri, peragaan kanan (user 2026-10-27, tata letak halaman iPhone Apple) ──
+   Kiri putih polos dengan daftar judul tanpa pil (user 2026-10-27, "bagian kiri putih polos aja, gausah pakai pill
+   lagi"): judul redup, yang dipilih gelap dengan satu kalimat di bawahnya; garis tipis di antara judul. Empat desktop
+   bertumpuk di satu sel; cuma yang aktif terlihat & beranimasi. KOREKSI: dulu pil kaca putih buram dengan ikon ⊕ di
+   atas foto fitur-latar.jpg sebagai latar bagian (sebelumnya pil abu di latar putih); yang dipilih jadi kartu dengan
+   kalimat sebaris judulnya. Foto itu sekarang wallpaper desktop di kanan. */
+.fitur { background: var(--bg); }
+.fitur-tata { display: grid; gap: 28px; }
+.fitur-daftar { position: relative; display: flex; flex-direction: column; }
+.fitur-item + .fitur-item { border-top: 1px solid var(--garis); }
+.fitur-pil { display: block; width: 100%; text-align: left; font: 400 17px/1.5 var(--tampil); letter-spacing: -0.01em; color: var(--fg2); background: none; border: 0; padding: 20px 0; cursor: pointer; }
+.fitur-pil b { display: block; font-size: clamp(20px, 1.6vw, 24px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; color: var(--fg3); transition: color .2s; }
+.fitur-pil:hover b { color: var(--fg2); }
+.fitur-titik, .fitur-uraian { display: none; }
+.fitur-item.buka .fitur-pil { cursor: default; }
+.fitur-item.buka b { color: var(--fg); }
+.fitur-item.buka .fitur-uraian { display: block; margin-top: 8px; animation: fiturMasuk .45s ease both; }
+@keyframes fiturMasuk { from { opacity: 0; translate: 0 -4px; } }
+/* Menu klik kanan kotak: menu yang sama bentuknya dengan menu tray, tapi muncul di ujung kursor (JS menaruh left/top). */
+.menu-kotak { right: auto; bottom: auto; transform-origin: top left; z-index: 8; }
+.menu-tray .mi.bahaya { color: #ff453a; }
+.menu-tray .mi.bahaya.sorot { background: #ff453a; color: #fff; }
+.menu-tray .mi.bahaya.sorot small { color: rgba(255, 255, 255, 0.85); }
+/* Kartu Tema di atas bar (Pengaturan › Tema: Terang / Gelap); warnanya ikut token bar, jadi ikut berganti bersama bar. */
+.tema-kartu { width: max-content; min-width: 360px; gap: 24px; margin: 0 auto 26px; display: flex; justify-content: space-between; align-items: center; padding: 12px 12px 12px 20px; border-radius: 16px; background: var(--bar); color: var(--putih); font: 600 15px var(--ui); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 50px rgba(0, 0, 0, 0.2); transition: background .3s, color .3s; }
+.terang .tema-kartu { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 20px 50px rgba(0, 0, 0, 0.12); }
+.seg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--kotak); transition: background .3s; }
+.seg-pil { padding: 6px 16px; border-radius: 8px; font-size: 13px; color: var(--label); transition: background .25s, color .25s; }
+.seg-pil.aktif { background: var(--aksen); color: #fff; }
+/* Pintasan di kartu yang sama (Pengaturan › Pintasan untuk membuka): tombol-tombolnya; saat merekam, bingkai aksen
+   berdenyut dengan "Press keys…". Pesannya di bawah kartu, kalimat dari app. */
+.pintas { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 3px 8px; border-radius: 10px; background: var(--kotak); transition: box-shadow .25s; }
+.pintas .kc { min-width: 34px; height: 28px; padding: 0 10px; display: grid; place-items: center; border-radius: 7px; background: var(--pilih); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 0 rgba(0, 0, 0, 0.35); font-size: 13px; font-weight: 600; transition: translate .1s, box-shadow .1s; }
+.pintas .kc.tekan { translate: 0 2px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 0 rgba(0, 0, 0, 0.35); }
+.pintas .plus { color: var(--label); font-size: 13px; }
+.pintas.rekam { box-shadow: 0 0 0 2px var(--aksen); animation: rekamDenyut 1.2s ease-in-out infinite; }
+.rekam-teks { padding: 0 6px; font-size: 13px; color: var(--label); }
+@keyframes rekamDenyut { 50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--aksen) 45%, transparent); } }
+/* Sakelar "Show box names & numbers" di kartu yang sama; mati: nama & nomor tiap kotak memudar dan ikonnya turun ke
+   tengah kotak. */
+.sakelar { position: relative; flex: none; width: 46px; height: 28px; border-radius: 14px; background: var(--kotak); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); transition: background .25s; }
+.sakelar::after { content: ""; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: translate .25s var(--gerak); }
+.sakelar.nyala { background: var(--aksen); }
+.sakelar.nyala::after { translate: 18px 0; }
+.kotak .nama, .kotak .no { transition: opacity .3s; }
+.kotak .ikon { transition: top .35s var(--gerak); }
+.tanpa-label .kotak .nama, .tanpa-label .kotak .no { opacity: 0; }
+.tanpa-label .kotak .ikon { top: 56px; }
+.pintas-pesan { min-height: 20px; margin: -12px 0 18px; text-align: center; font: 600 14px var(--ui); color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+/* Nisan (user 2026-10-27, "gausah pakai pill lagi"): .fitur-plus, ikon ⊕ di tiap pil. */
+.fitur-panggung { display: grid; place-items: center; }
+/* Ganti fitur: peragaan lama menutup pelan dulu (memudar & sedikit mengecil), baru yang baru muncul (user 2026-10-27,
+   "jangan kaya flash bang gitu ... kaya si animasi aplikasi kaya nutup smooth dulu terus muncul"). KOREKSI: dulu
+   keduanya memudar bersamaan .5s, dan latar putih bagian ikut terlihat di tengahnya. */
+.fitur-panggung > .layar { grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility 0s .35s; }
+/* Cuma .layar-isi (bar & kartunya) yang mengecil: kursor dan taskbar punya transisi translate / scale sendiri. */
+.fitur-panggung > .layar > .desk > .layar-isi { transition: scale .35s ease; scale: .97; }
+.fitur-panggung > .layar.aktif { opacity: 1; visibility: visible; transition: opacity .45s ease .35s; }
+.fitur-panggung > .layar.aktif > .desk > .layar-isi { scale: 1; transition: scale .5s var(--gerak) .35s; }
+/* Taskbar disembunyikan seperti di pembuka (user 2026-10-27, "hide taskbar nya"): sisa garis 2 px; peragaan tray
+   menaikkannya (.naik) saat kursor turun ke ^ dan menurunkannya lagi sesudah Open Sevdeck. */
+/* Nisan (user 2026-10-27, eksperimen 3, "masih ada taskbarnya, hapus aja soalnya kan udah gadipake"): div.taskbar di
+   ketujuh desktop bagian fitur, beserta ".fitur .taskbar { translate: 0 100%; }" yang menyembunyikannya; turun 100%
+   itu tetap terlihat di bawah kotak isi karena desktop di sini tidak memotong (wallpaper melebar). Isi desktopnya
+   sekarang boleh sampai bawah (tadinya menyisakan tinggi taskbar). */
+.fitur .layar-isi { bottom: 0; }
+/* Kursor peragaan Fast, Anything, Profiles (user 2026-10-27, "munculin juga si cursornya", lalu "animasiin juga dong jadi
+   kaya cursor nya yang lakuin hal yang lagi dimintain user"): meluncur ke yang diklik lewat buatKursor(); letak awalnya
+   juga dari JS. KOREKSI: dulu kursor diam "left: 70%; top: 66%". Peragaan tray punya kursornya sendiri (#kursor). */
+.kursor-diam { z-index: 20; transition: translate .6s var(--gerak), scale .12s, opacity .2s; }
+.fitur-panggung > .layar.sudut { --maks: 1080px; } /* sama besar dengan tiga desktop lain, supaya tidak melompat saat berganti */
+.fitur .wallpaper { background-image: url("fitur-latar.jpg"); }
+/* Layar lebar: kolom tulisan di kiri (--kiri-fitur, sekitar sepertiga, bukan separuh), dan isi desktop peragaan di
+   sisanya sampai tepi atas, kanan, dan bawah, tanpa bingkai; isinya menata diri ke rasio daerah itu (.fit). Sempat
+   kolom kiri putih dengan potongan bersudut bulat seperti kartu logo (user 2026-10-27), lalu dibatalkan; lihat
+   .fitur-panggung di bawah. KOREKSI: dulu desktop selayar penuh di bawah pil yang mengambang ("inset: 0"),
+   dan sebelumnya dua kolom dengan desktop berbingkai 16:10 ("grid-template-columns: minmax(360px, 0.85fr)
+   minmax(0, 1.6fr)"). section. / > .lebar: menang atas aturan .bagian di blok layar lebar sesudah ini. */
+/* Eksperimen 2 (user 2026-10-27, "di bagian 2 itu jadinya si tulisan judulnya aja gausah sama penjelasan jadi di bagian
+   atas kaya di bagian atas pas lagi penjelasan gitu tapi ini judul aja, terus bagian bawah dari animasi kaya ada tombol
+   kanan kiri"): daftar kiri tidak tampil; judul fitur di tengah atas dengan munculan kata per kata seperti keterangan
+   pembuka (judulKe()), dan di bawah peragaan tombol ‹ › dengan titik penanda fitur (.fitur-nav). KOREKSI: dulu daftar
+   judul + satu kalimat di kolom kiri, diklik untuk memilih. */
+.fitur-daftar { display: none; }
+/* Nisan (user 2026-10-27, eksperimen 3, "gaada tulisan diatas juga"): .fitur-judul, judul fitur di tengah atas dengan
+   munculan kata per kata (judulKe()); penjelasannya sekarang di dalam bar mini (.uraian-bar). */
+/* Eksperimen 3 (user 2026-10-27, "dibawah itu kaya mockup si bar item gitu ada 7 kotak ... pas diklik ... item 1 nanti
+   munculin kaya fitur 1"): di bawah peragaan, bar Sevdeck mini dengan tujuh kotak, satu per fitur; kotak yang
+   diklik terpilih (cincin) dan peragaannya tampil. KOREKSI: dulu tombol ‹ › dengan titik penanda (.fitur-nav,
+   .panah-fitur, .titik-fitur). */
+.fitur .fitur-bar { width: min(820px, 100%); margin: 0 auto; } /* .fitur: menang atas .fit { width: 100% } sesudah ini */
+.fitur-bar .kotak { cursor: pointer; overflow: hidden; transition: flex-basis .55s var(--gerak), margin .55s var(--gerak), opacity .3s, background .12s; }
+.fitur-bar .kotak:not(.pilih):hover { filter: brightness(1.15); }
+/* Penjelasan di dalam bar (user 2026-10-27, eksperimen 3, "klik item 1, nanti item sisanya ngegabung gitu smooth terus
+   diisi penjelasan fitur"): enam kotak lain menyusut ke lebar 0 sementara .uraian-bar di ujung kanan melebar mengisi
+   tempatnya, jadi kotak yang dipilih meluncur ke kiri dan sisanya seperti menyatu jadi satu kotak berisi judul +
+   kalimat fiturnya. Klik kotak itu atau penjelasannya: bar kembali tujuh kotak. margin-left -12: membatalkan sela
+   flex (12) selama penjelasan masih selebar 0. */
+.uraian-bar { position: relative; flex: 0 1 0px; min-width: 0; height: 112px; margin-left: -12px; border-radius: 30px; background: var(--kotak); overflow: hidden; cursor: pointer; transition: flex-grow .55s var(--gerak), margin .55s var(--gerak); }
+.uraian-bar p { position: absolute; inset: 0 56px 0 26px; display: flex; align-items: center; margin: 0; font: 400 16px/1.45 var(--ui); color: var(--label); opacity: 0; transition: opacity .25s; }
+.uraian-bar b { font-weight: 700; color: var(--putih); }
+.uraian-bar .tutup-uraian { position: absolute; right: 18px; top: 50%; translate: 0 -50%; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--label); background: var(--pilih); opacity: 0; transition: opacity .25s; }
+.uraian-bar .tutup-uraian svg { width: 12px; height: 12px; }
+.fitur-bar.gabung .kotak:not(.pilih) { flex-basis: 0; margin-right: -12px; opacity: 0; pointer-events: none; }
+.fitur-bar.gabung .uraian-bar { flex-grow: 1; margin-left: 0; }
+.fitur-bar.gabung .uraian-bar p, .fitur-bar.gabung .uraian-bar .tutup-uraian { opacity: 1; transition: opacity .35s .35s; }
+.fitur-bar.gabung .cincin { translate: 0 0; } /* cincin ikut kotak yang meluncur ke ujung kiri */
+@media (min-width: 900px) and (min-height: 600px) {
+  /* Wallpaper selayar penuh tanpa bingkai, peragaan lebih kecil (kotak isi inset 6% 14% 24%), tanpa judul atas, dan bar
+     mini di paling bawah (user 2026-10-27, eksperimen 3, "jadi wallpaper full aja gitu tapi ukuran animasi app nya
+     kecilin, taskbar ngga ada, jadi si mockup tadi juga dipaling bawah"). Wallpaper tiap desktop melebar ke luar
+     kotak isi sejauh sisa bagian (6/70, 14/72, 24/70), jadi pas dengan foto latar dan diam saat peragaan berganti.
+     KOREKSI: dulu desktop 80% berbingkai bulat & berbayang di atas latar putih (inset 9% 10% 20%), judul di atas. */
+  section.fitur { position: relative; overflow: hidden; padding: 0; background: #c9cfe6 url("fitur-latar.jpg") center / cover no-repeat; }
+  section.fitur > .lebar { position: absolute; inset: 0; width: auto; max-width: none; margin: 0; padding: 0; display: block; }
+  .fitur-tata { display: block; height: 100%; }
+  .fitur .fitur-panggung { position: absolute; inset: 6% 14% 24%; z-index: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: stretch; container-type: normal; }
+  .fitur .fitur-panggung > .layar { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; overflow: visible; }
+  .fitur .wallpaper { inset: -8.571% -19.444% -34.286%; }
+  /* Lebar menentukan skala bar (820 / 884 = 0,93 -> tinggi sekitar 130), muat di ruang bawah 24%. */
+  section.fitur .fitur-bar { position: absolute; left: 50%; bottom: 3.5%; translate: -50% 0; z-index: 2; width: min(820px, 70vw); margin: 0; } /* section.: menang atas .fit (position, width) sesudah ini */
+}
+@media (max-width: 899px), (max-height: 599px) {
+  .fitur-panggung { order: -1; } /* layar sempit: peragaan, lalu bar mininya */
+}
+.bagian .penjelas { margin: clamp(24px, 3vw, 36px) auto 0; max-width: 60ch; text-align: center; }
+
+/* Satu bagian = satu layar (user 2026-10-26, "setiap scroll gitu langsung judul dan animasinya keliatan full gitu jadi
+   ga kepotong"): di layar lebar tiap bagian setinggi jendela di bawah navigasi (52) dan guliran berhenti tepat di
+   awalnya. Judul & kalimat berdampingan; desktop bingkai mengisi sisa tinggi lewat .ruang (16:10 terbesar yang muat
+   di lebar & tinggi yang tersisa); tombol & langkah di bawahnya. Pembuka tidak diubah, cuma ikut jadi titik berhenti.
+   Layar sempit atau pendek tetap mengalir seperti biasa. */
+@media (min-width: 900px) and (min-height: 600px) {
+  /* Tiap bagian setinggi layar penuh (header mengambang yang dulu butuh ruang atas --ruang-nav sudah dihapus).
+     KOREKSI (user 2026-10-27): dulu "scroll-padding-top: 52px" dan tinggi "calc(100svh - 52px)" di bawah header 52;
+     lalu ruang bawah untuk pil navigasi (--ruang-pil). */
+  /* Magnet antarbagian dikembalikan (user 2026-10-27, "kembalikan efek magnet tadi"). KOREKSI: sempat dihapus ("pas
+     pindah bagian gausah ada kaya magnet gitu"). */
+  html { scroll-snap-type: y mandatory; scroll-padding-top: 0; }
+  /* .hero, bukan .hero-desk (KOREKSI 2026-10-27; sempat ikut .hero-kosong yang sudah dihapus). */
+  .hero, .bagian, .penutup { scroll-snap-align: start; }
+  .bagian, .penutup { box-sizing: border-box; height: 100vh; height: 100svh; display: flex; flex-direction: column; }
+  /* Bagian penutup + kaki = satu layar terakhir (user 2026-10-26, "footer sama bagian akhirnya kaya nyatu gitu aja jadi
+     gaada ke scroll"): penutup memberi tempat setinggi kaki (--kaki), kaki sebaris & bukan titik berhenti sendiri.
+     KOREKSI: dulu ".kaki { scroll-snap-align: end; }" dan penutup setinggi layar penuh, jadi kaki butuh satu gulir lagi. */
+  section.penutup { height: calc(100vh - var(--kaki)); height: calc(100svh - var(--kaki)); }
+  footer.kaki { box-sizing: border-box; height: var(--kaki); padding-block: 0; display: flex; align-items: center; } /* footer.: menang atas .kaki sesudah ini */
+  .bagian { padding-block: clamp(24px, 4vh, 48px); } /* KOREKSI (2026-10-27, header dihapus): dulu atasnya + var(--ruang-nav) */
+  /* Satu kolom: label + judul, desktop (mengisi sisa tinggi), lalu satu kalimat (user 2026-10-26, "animasi ditengah").
+     Judul dibuat sebaris supaya desktop dapat tinggi lebih. KOREKSI: dulu penjelasan di kiri, animasi di kanan
+     (".bagian > .lebar { ... display: grid; grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.6fr); ... }" dan
+     ".bagian .kepala { grid-column: 1; grid-row: 1 / -1; align-self: center; ... }"). */
+  .bagian > .lebar { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: clamp(14px, 2.6vh, 28px); }
+  .bagian h2 { font-size: clamp(32px, min(3.3vw, 6.4vh), 52px); }
+  .bagian h2 br { display: none; }
+  .bagian .kepala { margin: 0; }
+  .bagian .penjelas { margin: 0 auto; }
+  .isi-bagian { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .ruang { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+  .ruang > .layar { width: min(100cqw, var(--maks, 1080px), 160cqh); }
+  .bagian .baris-tut { margin-top: clamp(14px, 2.5vh, 26px); }
+  /* section.: menang atas .penutup yang ditulis sesudah ini. Ikon, judul, dan jaraknya ikut tinggi layar, supaya ada
+     ruang napas ke navigasi & kaki (user 2026-10-26, "ini masih mepet banget"). KOREKSI: dulu padding 0 dengan ikon
+     sampai 168 + 40 dan judul sampai 72, yang di layar laptop menempel ke navigasi dan kaki. */
+  section.penutup { justify-content: center; padding-block: clamp(24px, 5vh, 56px); }
+  .penutup .ikon-besar { width: clamp(84px, 14vh, 150px); margin-bottom: clamp(18px, 3.5vh, 36px); }
+  .penutup h2 { font-size: clamp(34px, min(4.6vw, 7.6vh), 62px); }
+  .penutup .cta { margin-top: clamp(18px, 3.5vh, 34px); }
+  .penutup .kecil { margin-top: clamp(10px, 2vh, 18px); }
+}
+
+/* ── Pemasang skala: mockup digambar di ukuran app lalu diperkecil seutuhnya ── */
+.fit { position: relative; width: 100%; }
+.fit-in { position: absolute; left: 50%; top: 0; transform-origin: top center; }
+
+/* ── Bar & kotak (barwidget.cpp gambarKotak) ─────────────────────────── */
+.barwrap { position: relative; width: 884px; height: 185px; font-family: var(--ui); --i: 0; --ring: #0a84ff; }
+.barwrap.tanpa-pil { height: 140px; }
+.barwrap > .bar, .barwrap > .pilnama { transition: opacity .2s ease, translate .28s var(--gerak); }
+.barwrap.tersembunyi > .bar, .barwrap.tersembunyi > .pilnama { opacity: 0; translate: 0 10px; }
+.cahaya { position: absolute; left: 16%; right: 16%; top: 34px; height: 80px; border-radius: 50%; background-color: var(--ring); filter: blur(64px); opacity: .3; pointer-events: none; transition: opacity .5s, background-color .6s; }
+.barwrap.tersembunyi > .cahaya { opacity: 0; }
+.bar { position: absolute; inset: 0 0 auto; height: 140px; padding: 14px; border-radius: 40px; background: var(--bar); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 24px 60px rgba(0, 0, 0, 0.35); }
+.isi { display: flex; gap: 12px; transition: opacity .12s; }
+.barwrap.ganti .isi { opacity: 0; }
+.kotak { position: relative; flex: 0 0 112px; height: 112px; border-radius: 30px; background: var(--kotak); transition: background .12s; }
+.kotak.tekan { background: #2c2c31; }
+.kotak.kosong { background: transparent; color: #8a8a8e; }
+.kotak.kosong .garis { position: absolute; inset: 0; }
+.kotak.kosong .garis rect { transition: stroke .15s; }
+/* Berkas dari Explorer di atas kotak kosong: garis putus-putus aksen 4/3 dan isian aksen 12% (barwidget.cpp,
+   Tema::tempatTujuanBg alfa 31). */
+.kotak.kosong.tujuan { background: color-mix(in srgb, var(--ring) 12%, transparent); color: var(--ring); }
+.kotak.kosong.tujuan .garis rect { stroke: var(--ring); stroke-width: 2; stroke-dasharray: 4 3; }
+.kotak.diisi { color: var(--ring); }
+.kotak .no { position: absolute; left: 12.5px; top: 9px; font-size: 11px; font-weight: 600; line-height: 1; color: var(--redup); }
+.kotak.pilih .no { color: var(--putih); font-weight: 700; }
+.kotak .ikon { position: absolute; left: 56px; top: 43.5px; translate: -50% -50%; display: grid; place-items: center; }
+.kotak .ikon svg { display: block; }
+.kotak .tambah { position: absolute; left: 56px; top: 56px; translate: -50% -50%; }
+.kotak .nama { position: absolute; left: 8px; right: 8px; top: calc(var(--bl, 87px) - 11px); text-align: center; font-size: 12px; font-weight: 600; line-height: 14px; color: var(--label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kotak.pilih .nama { color: var(--putih); }
+.kotak.pop .ikon { animation: pop .34s var(--gerak) both; }
+.kotak.pop .nama { animation: muncul .3s .08s both; }
+@keyframes pop { from { opacity: 0; scale: .4; } to { opacity: 1; scale: 1; } }
+@keyframes muncul { from { opacity: 0; } to { opacity: 1; } }
+.huruf { width: 46px; height: 46px; border-radius: 11px; background: #2c2c2e; display: grid; place-items: center; color: #fff; font-size: 20px; font-weight: 600; }
+.cincin { position: absolute; left: 14px; top: 14px; width: 112px; height: 112px; border-radius: 30px; pointer-events: none; box-shadow: inset 0 0 0 3px var(--ring); translate: calc(var(--i) * 124px) 0; transition: translate .34s var(--gerak), --ring .45s ease; }
+.pilnama { position: absolute; top: 158px; left: calc(70px + var(--i) * 124px); transform: translateX(-50%); height: 27px; padding: 0 12px; border-radius: 14px; background: #1d1d1f; color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); font-size: 12px; font-weight: 600; line-height: 27px; white-space: nowrap; }
+.barwrap:not(.tersembunyi) > .pilnama { transition: left .34s var(--gerak), opacity .2s, translate .28s var(--gerak); }
+.petunjuk { display: inline-flex; gap: 14px; align-items: center; height: 29px; padding: 0 15px; border-radius: 15px; background: rgba(12, 12, 14, 0.83); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); font: 400 12px/1 var(--ui); color: var(--label); white-space: nowrap; }
+.petunjuk b { color: #fff; font-weight: 700; margin-right: 4px; }
+
+/* ── Deretan profil ───────────────────────────────────────────────────── */
+.deretan { position: relative; display: flex; align-items: center; width: max-content; margin: 0 auto 22px; padding: 4px; border-radius: 19px; background: var(--bar); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); font-family: var(--ui); }
+.dpil { position: absolute; top: 4px; height: 30px; border-radius: 15px; background: var(--putih); transition: left .36s var(--gerak), width .36s var(--gerak); }
+.tab { position: relative; height: 30px; padding: 0 16px; border: 0; background: none; cursor: pointer; border-radius: 15px; font: 600 13px var(--ui); color: var(--label); transition: color .2s; }
+.tab.aktif { color: #1d1d1f; }
+/* + dan Pengaturan selebar Ukuran::profilTambah (30), dengan sela profilTabSela (4) di antara keduanya. */
+.tab.ikon-tab { width: 30px; padding: 0; color: var(--redup); cursor: default; display: grid; place-items: center; }
+.tab.ikon-tab + .tab.ikon-tab { margin-left: 4px; }
+.hero-mock { position: relative; width: 884px; height: 245px; }
+.hero-mock .deretan { transition: opacity .2s ease, translate .28s var(--gerak); }
+.hero-mock.tersembunyi .deretan { opacity: 0; translate: 0 10px; }
+.panggung-profil { position: relative; width: 884px; height: 262px; }
+.petunjuk-profil { display: flex; justify-content: center; margin-top: 18px; }
+
+/* ── Jendela kecil bagian Fast ────────────────────────────────────────── */
+.jendela { position: absolute; left: 22%; top: 7%; width: 56%; height: 66%; border-radius: .9cqw; overflow: hidden; background: #202020; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 3cqw 6cqw rgba(0, 0, 0, 0.45); opacity: 0; scale: .97; transition: opacity .24s ease, scale .32s var(--gerak); pointer-events: none; }
+.jendela.buka { opacity: 1; scale: 1; }
+.jendela-judul { height: 3.6cqw; display: flex; align-items: center; gap: .8cqw; padding: 0 0 0 1.2cqw; font-size: 1.05cqw; color: var(--label); }
+.jendela-judul .kontrol span { width: 4.2cqw; }
+.jendela-judul .kontrol svg { width: 1cqw; height: 1cqw; stroke: var(--label); }
+.jendela-isi { position: absolute; inset: 3.6cqw 0 0; background: #191919; }
+.jendela-isi svg { width: 3.4cqw; height: auto; }
+.kerangka { background: rgba(255, 255, 255, 0.08); border-radius: .4cqw; }
+
+/* ── Panel tambah (bagian Anything; panel.cpp, mockup 2.20-2.22) ─────── */
+.panggung-isi { position: relative; width: 978px; height: 646px; font-family: var(--ui); --ring: #0a84ff; }
+.panel { position: absolute; left: 0; top: 0; width: 978px; height: 440px; border-radius: 32px; background: var(--panel); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 30px 80px rgba(0, 0, 0, 0.35); --k: 0; color: var(--putih); }
+.panah { position: absolute; left: 853px; top: 439px; width: 16px; height: 9px; }
+.rel { position: absolute; left: 0; top: 19px; bottom: 19px; width: 105px; border-right: 1px solid rgba(255, 255, 255, 0.07); }
+.relpil { position: absolute; left: 25px; top: 3px; width: 55px; height: 36px; border-radius: 18px; background: var(--putih); translate: 0 calc(var(--k) * 67px); transition: translate .38s var(--gerak); }
+.rel-item { position: absolute; left: 0; width: 105px; height: 62px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #98989d; transition: color .25s; }
+.rel-item .ik { width: 55px; height: 36px; display: grid; place-items: center; color: var(--kedua); transition: color .25s; }
+.rel-item.aktif { color: var(--putih); }
+.rel-item.aktif .ik { color: #0c0c0e; }
+.area { position: absolute; left: 119px; top: 19px; width: 841px; height: 402px; }
+.pane { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s .3s; }
+.pane.aktif { opacity: 1; visibility: visible; transition: opacity .3s ease .05s; }
+.kolom { position: relative; height: 44px; border-radius: 22px; background: var(--isian); display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 15px; box-shadow: inset 0 0 0 0 var(--aksen); transition: box-shadow .25s; }
+.kolom > svg { flex: none; color: var(--redup); }
+.kolom.fokus { box-shadow: inset 0 0 0 2px var(--aksen); }
+.kolom .ph { color: var(--redup); }
+.kolom .ketik:not(:empty) ~ .ph { display: none; }
+.caret { display: none; width: 1.5px; height: 18px; background: var(--aksen); margin-left: -11px; animation: kedip 1s steps(1) infinite; }
+.fokus .caret { display: inline-block; }
+@keyframes kedip { 50% { opacity: 0; } }
+.status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label); opacity: 0; transition: opacity .3s; }
+.status.ada { opacity: 1; }
+.lbl { font-size: 12px; font-weight: 600; color: var(--redup); margin: 18px 0 10px 2px; }
+.kartu-baris { display: grid; grid-template-columns: repeat(7, 1fr); gap: 11px; }
+/* Dua baris kartu (14 app); baris kedua memudar seperti kisi yang masih bisa digulir. */
+.kartu-baris.pudar { -webkit-mask-image: linear-gradient(180deg, #000 67%, transparent 96%); mask-image: linear-gradient(180deg, #000 67%, transparent 96%); }
+.kartu { position: relative; height: 100px; border-radius: 22px; background: var(--isian); transition: opacity .3s, background .3s, box-shadow .3s; }
+.kartu .ikon { position: absolute; left: 50%; top: 16px; translate: -50% 0; }
+.kartu .nm { position: absolute; left: 4px; right: 4px; top: 66px; text-align: center; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kartu.redup { opacity: .16; }
+.kartu.pilih { background: var(--pilih); box-shadow: inset 0 0 0 2px var(--aksen); }
+.zona { position: absolute; left: 0; right: 0; top: 60px; bottom: 0; border-radius: 22px; border: 1.5px dashed rgba(255, 255, 255, 0.18); display: grid; place-content: center; justify-items: center; gap: 14px; color: var(--kedua); font-size: 15px; font-weight: 500; transition: border-color .25s, background-color .25s; }
+/* Ada yang diseret di atasnya: aksen dengan isian aksen 12% (barwidget.cpp tempatTujuan, Tema::tempatTujuanBg alfa 31). */
+.zona.aktif { border-color: var(--aksen); background: color-mix(in srgb, var(--aksen) 12%, transparent); }
+.tombol-putih { height: 34px; padding: 0 16px; border-radius: 17px; background: var(--putih); color: #1d1d1f; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; }
+/* Folder diseret dari Explorer ke panel, seperti seret di pembuka: kursor dengan gambar seret Windows (kotak biru
+   bening, ikon & nama) di bawah kanannya, masuk dari tepi kanan desktop ke daerah lepas. KOREKSI (user 2026-10-26,
+   "benerin animasinya harusnya kan kaya user drag and drop yang udah ada"): dulu kartu gelap tanpa kursor yang meluncur
+   dari dalam panel, ".hantu { ... translate: 330px 150px }" lalu ".hantu.masuk { translate: 0 0 }". */
+.hantu { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; opacity: 0; transition: translate 1.1s var(--gerak), opacity .25s; }
+.hantu.tampil { opacity: 1; }
+/* Gambar seret Explorer = ikon foldernya, ujung kursor di tengah ikon (tempat ia digenggam), kursor di atasnya. KOREKSI
+   (user 2026-10-26, ikon "diujung kiri atas cursor kaya beneran"): dulu kotak biru berisi ikon & nama di kanan bawah. */
+.hantu .ikon-seret { position: absolute; left: -22px; top: -17px; opacity: .92; transition: opacity .2s; }
+.hantu .ikon-seret svg { display: block; }
+.hantu .kursor-isi { position: absolute; left: 0; top: 0; width: 15px; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4)); }
+.hantu.lepas .ikon-seret { opacity: 0; }
+.pratinjau { position: absolute; left: 0; top: 60px; width: 300px; bottom: 0; border-radius: 22px; background: var(--isian); display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center; }
+.pratinjau > * { opacity: 0; translate: 0 6px; transition: opacity .35s, translate .4s var(--gerak); }
+.pratinjau.ada > * { opacity: 1; translate: 0 0; }
+.pratinjau .huruf { width: 88px; height: 88px; border-radius: 22px; font-size: 40px; margin-bottom: 14px; }
+.pratinjau b { font-size: 18px; }
+.pratinjau small { font-size: 12px; color: var(--redup); }
+.form { position: absolute; left: 314px; right: 0; top: 60px; display: grid; gap: 8px; }
+.form .lbl { margin: 6px 0 0 2px; font-weight: 400; }
+.aksi { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 24px; }
+.batal { font-size: 14px; font-weight: 600; color: var(--kedua); }
+.pasang { height: 36px; padding: 0 18px; border-radius: 18px; background: var(--aksen); color: #fff; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; transition: filter .12s; }
+.pasang.tekan { filter: brightness(.78); }
+.area-teks { position: absolute; left: 0; right: 0; top: 60px; height: 286px; border-radius: 22px; background: var(--isian); padding: 16px 18px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; }
+.area-teks .ph { color: var(--redup); }
+.area-teks .ketik:not(:empty) ~ .ph { display: none; }
+.hitung { position: absolute; left: 4px; bottom: 9px; font-size: 12px; color: var(--redup); font-variant-numeric: tabular-nums; }
+.bar-isi { position: absolute; left: 47px; top: 459px; }
+.petunjuk-isi { position: absolute; left: 536px; top: 617px; transform: translateX(-50%); }
+
+/* ── Penutup & kaki ───────────────────────────────────────────────────── */
+.penutup { text-align: center; padding-block: clamp(96px, 13vw, 170px) clamp(80px, 10vw, 130px); }
+.ikon-besar { width: clamp(120px, 15vw, 168px); height: auto; margin: 0 auto 40px; display: block; filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.18)); }
+.ikon-besar .lk { transition: opacity .55s ease, translate .7s var(--gerak); }
+.ikon-besar .lk:nth-child(2) { transition-delay: .06s; }
+.ikon-besar .lk:nth-child(3) { transition-delay: .12s; }
+.ikon-besar .lk:nth-child(4) { transition-delay: .18s; }
+.ikon-besar .lk:nth-child(5) { transition-delay: .24s; }
+.ikon-besar .lk:nth-child(6) { transition-delay: .30s; }
+.ikon-besar .lk:nth-child(7) { transition-delay: .40s; }
+.ikon-besar .tujuh { stroke-dasharray: 340; stroke-dashoffset: 0; transition: stroke-dashoffset .8s var(--gerak) .75s; }
+.pre .ikon-besar .lk { opacity: 0; translate: -160px 0; }
+.pre .ikon-besar .tujuh { stroke-dashoffset: 340; }
+/* Tagline di bawah judul penutup: lebih tebal dari penjelasan bagian, tetap jauh di bawah ukuran judulnya. */
+.tagline { margin: 18px 0 0; font-size: clamp(18px, 1.5vw, 20px); font-weight: 600; letter-spacing: -0.01em; color: var(--fg2); }
+.kecil { margin: 18px 0 0; font-size: 14px; color: var(--fg3); }
+.kaki { background: var(--bg2); border-top: 1px solid var(--garis); padding-block: 26px 34px; font-size: 13px; color: var(--fg3); }
+.kaki .lebar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.kaki a { color: var(--fg2); text-decoration: none; }
+.kaki a:hover { color: var(--fg); text-decoration: underline; }
+
+/* ── Muncul saat digulir (elemen di bawah layar pertama saja) ─────────── */
+[data-reveal] { transition: opacity 1s cubic-bezier(.2, .7, .2, 1), translate 1s cubic-bezier(.2, .7, .2, 1); }
+[data-reveal].pre { opacity: 0; translate: 0 28px; }
+
+@media (max-width: 700px) {
+  /* Nisan (user 2026-10-27): ".nav-tautan { display: none; }"; tautan bagian navigasi sudah dihapus. */
+  /* Nisan (user 2026-10-26): ".tut" lebih kecil di layar sempit; tombol 1-7 bagian Fast dihapus. */
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; transition-delay: 0s !important; }
+  .caret { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="-8 -8 816 342">
+    <g stroke="#000" stroke-width="12" fill="#f4efe7">
+      <rect x="0" y="0" width="200" height="326" rx="72"/>
+      <rect x="79" y="0" width="200" height="326" rx="72"/>
+      <rect x="158" y="0" width="200" height="326" rx="72"/>
+      <rect x="237" y="0" width="200" height="326" rx="72"/>
+      <rect x="316" y="0" width="200" height="326" rx="72"/>
+      <rect x="395" y="0" width="200" height="326" rx="72"/>
+      <rect x="474" y="0" width="326" height="326" rx="72" fill="#0a6cff"/>
+    </g>
+    <path d="M572 99h133l-80 140" fill="none" stroke="#fff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- Logo versi garis untuk kalimat pembuka (user 2026-10-27, "garis hitam jadi putih, dan bagian dalamnya kosongin"):
+       bentuk sama dengan #logo, garis putih tanpa isi. Tanpa isi, garis kartu belakang akan tembus di balik kartu
+       depannya, jadi tiap kartu di-mask oleh bidang kartu tepat di depannya (cukup satu: kartu ke-2 di depan selalu
+       jatuh di bagian lurus kartu ke-1 di depan). Garis 16 (bukan 12) supaya tetap terbaca di logo setinggi huruf, dan
+       pas dengan tepi viewBox -8. -->
+  <symbol id="logoGaris" viewBox="-8 -8 816 342">
+    <mask id="lg0" maskUnits="userSpaceOnUse" x="-8" y="-8" width="816" height="342"><rect x="-8" y="-8" width="816" height="342" fill="#fff"/><rect x="79" y="0" width="200" height="326" rx="72"/></mask>
+    <mask id="lg1" maskUnits="userSpaceOnUse" x="-8" y="-8" width="816" height="342"><rect x="-8" y="-8" width="816" height="342" fill="#fff"/><rect x="158" y="0" width="200" height="326" rx="72"/></mask>
+    <mask id="lg2" maskUnits="userSpaceOnUse" x="-8" y="-8" width="816" height="342"><rect x="-8" y="-8" width="816" height="342" fill="#fff"/><rect x="237" y="0" width="200" height="326" rx="72"/></mask>
+    <mask id="lg3" maskUnits="userSpaceOnUse" x="-8" y="-8" width="816" height="342"><rect x="-8" y="-8" width="816" height="342" fill="#fff"/><rect x="316" y="0" width="200" height="326" rx="72"/></mask>
+    <mask id="lg4" maskUnits="userSpaceOnUse" x="-8" y="-8" width="816" height="342"><rect x="-8" y="-8" width="816" height="342" fill="#fff"/><rect x="395" y="0" width="200" height="326" rx="72"/></mask>
+    <mask id="lg5" maskUnits="userSpaceOnUse" x="-8" y="-8" width="816" height="342"><rect x="-8" y="-8" width="816" height="342" fill="#fff"/><rect x="474" y="0" width="326" height="326" rx="72"/></mask>
+    <!-- currentColor (KOREKSI 2026-10-27: dulu "#fff"): logo kiri atas berganti putih -> hitam saat digulir. -->
+    <g stroke="currentColor" stroke-width="16" fill="none">
+      <rect x="0" y="0" width="200" height="326" rx="72" mask="url(#lg0)"/>
+      <rect x="79" y="0" width="200" height="326" rx="72" mask="url(#lg1)"/>
+      <rect x="158" y="0" width="200" height="326" rx="72" mask="url(#lg2)"/>
+      <rect x="237" y="0" width="200" height="326" rx="72" mask="url(#lg3)"/>
+      <rect x="316" y="0" width="200" height="326" rx="72" mask="url(#lg4)"/>
+      <rect x="395" y="0" width="200" height="326" rx="72" mask="url(#lg5)"/>
+      <rect x="474" y="0" width="326" height="326" rx="72"/>
+    </g>
+    <path d="M572 99h133l-80 140" fill="none" stroke="currentColor" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- Ikon app: ubin hitam bersudut 22%, logo di dalam tepi 8% (menutray.cpp citraIkonApp). -->
+  <symbol id="ikonApp" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22" fill="#000"/>
+    <use href="#logo" x="8" y="32.4" width="84" height="35.2"/>
+  </symbol>
+</svg>
+
+<!-- Nisan (user 2026-10-27, "si header floating itu hapus"): header.nav, kaca mengambang di atas dengan merek Sevdeck
+     (ikon app + nama) di kiri dan Download di kanan, muncul sesudah pembuka & fitur digulir lewat. Penggantinya logo
+     kiri atas di bawah ini; Download tetap di halaman putih akhir pembuka dan di penutup. -->
+<!-- Baris atas: logo kiri; muncul sesudah kalimat pembuka hilang, lalu menetap di layar (fixed) sepanjang halaman.
+     Nisan (user 2026-10-27, "hapus yang fitur fitur tadi dan donwload"): div.situs-fitur (Drag and drop, Profiles,
+     Paste text, Right-click menu, Light and dark, Shortcuts) dan a.tombol.situs-unduh "Download". -->
+<!-- Header pembuka: logo | keterangan langkah peragaan (KOREKSI: dulu p.keterangan di dalam #skala). Header bagian
+     berikutnya terpisah (.kepala-apung di bawahnya; lihat komentar CSS .situs-atas). KOREKSI (user 2026-10-28): dulu
+     nama fitur & Download ikut di header ini dan menggantikan keterangan saat pembuka lewat. -->
+<header class="situs-atas" id="situsAtas">
+  <div class="hero-merek" aria-hidden="true"><svg viewBox="-8 -8 816 342"><use href="#logoGaris"/></svg>Sevdeck</div>
+  <span class="situs-garis" aria-hidden="true"></span>
+  <p class="keterangan" id="keterangan"></p>
+</header>
+<header class="kepala-apung" id="kepalaApung">
+  <a class="hero-merek" href="#atas" aria-label="Sevdeck"><svg viewBox="-8 -8 816 342" aria-hidden="true"><use href="#logoGaris"/></svg>Sevdeck</a>
+  <!-- Urut seperti halamannya (user 2026-10-27, "sesuai urutan gitu drag and drop terus jenis file terus profile"), tiap
+       nama ke layar putih bagiannya sendiri. Cuma tiga, satu per fitur yang punya halaman (user 2026-10-28, "header yang
+       diatas itu cuma tiga aja"). KOREKSI: dulu tujuh, Drag and drop, Profiles, Paste text, Add anything, Right-click
+       menu, Light and dark, Shortcuts. -->
+  <nav class="situs-fitur" aria-label="Features"><a href="#kenalSeret">Drag and drop</a><a href="#kenalProfil">Profiles</a><a href="#kenalOto">Folder profiles</a></nav>
+  <!-- Nisan (user 2026-10-28, halaman fitur lainnya dihapus): tautan Item types, Paste text, Profile colors, Shortcuts
+       ke #lainnya (data-lain). -->
+  <a class="situs-unduh" href="#unduh"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.2 8 10.7l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Download</a>
+</header>
+
+<main id="atas">
+
+  <section class="hero" data-loop="hero">
+    <div class="hero-desk" id="heroDesk" role="img" aria-label="Simulation on a Windows desktop: Sevdeck opens with Alt + Space. The cursor opens the Q3 Reports folder, drags a file and a folder out of the bar into File Explorer, adds a class schedule to box 7 and opens it, then switches to the School profile with Tab and opens Campus Portal.">
+      <div class="skala terang berwarna" id="skala">
+        <div class="hero-mock tersembunyi" id="mockHero">
+          <div class="panel panel-h" id="panelHero">
+            <div class="rel">
+              <span class="relpil"></span>
+              <div class="rel-item aktif" style="top:3px"><span class="ik"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><rect x="2" y="2" width="6" height="6" rx="1.6"/><rect x="10" y="2" width="6" height="6" rx="1.6"/><rect x="2" y="10" width="6" height="6" rx="1.6"/><rect x="10" y="10" width="6" height="6" rx="1.6"/></svg></span>Apps</div>
+              <div class="rel-item" style="top:70px"><span class="ik"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2 5a1.5 1.5 0 0 1 1.5-1.5H7l1.6 1.8h5.9A1.5 1.5 0 0 1 16 6.8v6.7A1.5 1.5 0 0 1 14.5 15h-11A1.5 1.5 0 0 1 2 13.5z"/></svg></span>File</div>
+              <div class="rel-item" style="top:137px"><span class="ik"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2.2 2.3 2.2 11.7 0 14M9 2c-2.2 2.3-2.2 11.7 0 14"/></svg></span>Site</div>
+              <div class="rel-item" style="top:204px"><span class="ik"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 4.5h12M3 9h12M3 13.5h8"/></svg></span>Text</div>
+            </div>
+            <div class="area">
+              <div class="pane aktif">
+                <div class="kolom"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M12.2 12.2 16 16"/></svg><span class="ph">Search apps…</span></div>
+                <div class="lbl">All apps</div>
+                <div class="kartu-baris pudar kb-semua"></div>
+              </div>
+              <div class="pane" id="paneFileH">
+                <div class="kolom"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2 5a1.5 1.5 0 0 1 1.5-1.5H7l1.6 1.8h5.9A1.5 1.5 0 0 1 16 6.8v6.7A1.5 1.5 0 0 1 14.5 15h-11A1.5 1.5 0 0 1 2 13.5z"/></svg><span class="ketik" id="jalurH"></span><span class="ph">Type a path/location</span></div>
+                <div class="zona">
+                  <svg width="40" height="40" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><path d="M2 5a1.5 1.5 0 0 1 1.5-1.5H7l1.6 1.8h5.9A1.5 1.5 0 0 1 16 6.8v6.7A1.5 1.5 0 0 1 14.5 15h-11A1.5 1.5 0 0 1 2 13.5z"/></svg>
+                  <span>Drag a file or folder here</span>
+                  <span class="tombol-putih" id="telusuriH">Browse in Explorer…</span>
+                </div>
+                <div class="file-konfirm">
+                  <div class="pratinjau ada"><div class="berkas-besar" id="berkasBesarH"></div><b>Class schedule.pdf</b><small>C:\Users\Brown\Documents</small></div>
+                  <div class="form">
+                    <div class="lbl">Name in box</div>
+                    <div class="kolom"><span class="ketik">Class schedule.pdf</span></div>
+                  </div>
+                  <div class="aksi"><span class="batal">Cancel</span><span class="pasang" id="pasangH">Add to box 7</span></div>
+                </div>
+              </div>
+              <div class="pane">
+                <div class="kolom"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M7.5 10.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.9.9M10.5 7.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.9-.9"/></svg><span class="ph">Type or paste a site address</span></div>
+                <div class="pratinjau"></div>
+                <div class="form">
+                  <div class="lbl">Name in box</div>
+                  <div class="kolom"><span class="ph">Site name</span></div>
+                </div>
+                <div class="aksi"><span class="batal">Cancel</span><span class="pasang redup-p">Add to box 7</span></div>
+              </div>
+              <div class="pane">
+                <div class="kolom"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 4.5h12M3 9h12M3 13.5h8"/></svg><span class="ph">Text title</span></div>
+                <div class="area-teks"><span class="ph">Write or paste the text to copy</span></div>
+                <span class="hitung">0 / 10,000</span>
+                <div class="aksi"><span class="batal">Cancel</span><span class="pasang redup-p">Add to box 7</span></div>
+              </div>
+            </div>
+            <svg class="panah" viewBox="0 0 16 9" aria-hidden="true"><path d="M0 0h16L8 9z" fill="#141416"/></svg>
+          </div>
+          <div id="deretanHero"></div>
+          <div id="barHero"></div>
+          <div class="petunjuk petunjuk-h" id="petunjukHero"></div>
+        </div>
+        <div class="win" id="winHero"></div>
+        <div class="win" id="pdfHero"></div>
+        <div class="win dialog-h" id="dialogHero"></div>
+        <!-- p.keterangan pindah ke baris atas (header.situs-atas). -->
+        <div class="bawah-sim">
+          <div class="lipat" id="lipat"><div><div class="ketukan" id="ketukan"></div></div></div>
+        </div>
+        <div class="taskbar"></div>
+        <div class="menu-tray" id="menuHero" aria-hidden="true">
+          <div class="mi">Open Sevdeck<small>Alt+Space</small></div>
+          <hr>
+          <div class="mi">Settings…</div>
+          <hr>
+          <div class="mi">Quit Sevdeck</div>
+        </div>
+        <div class="hantu-h" id="hantuHero"></div>
+        <svg class="kursor-h" id="kursorHero" viewBox="0 0 14 22" aria-hidden="true"><path d="M1 1v17.2l4.3-4.1 2.9 6.4 2.9-1.3-2.8-6.3H14.2z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </div>
+      <!-- Akhir peragaan pembuka (user 2026-10-26): halaman putih menutup desktop dengan isi bagian penutup tanpa kaki,
+           plus Replay yang memulai peragaannya lagi. -->
+      <p class="hero-intro" id="heroIntro" aria-hidden="true"><span class="intro-kalimat">Deck for your everyday things.</span><span class="intro-buka"><span class="intro-merek"><svg viewBox="-8 -8 816 342"><use href="#logoGaris"/></svg>Sevdeck</span></span></p>
+      <div class="hero-akhir" id="heroAkhir">
+        <svg class="ikon-akhir" viewBox="0 0 100 100" role="img" aria-label="Sevdeck icon"><use href="#ikonApp"/></svg>
+        <h1>Sevdeck</h1> <!-- h1 halaman sejak judul sesudah desktop dihapus -->
+        <p class="tagline">More than a deck.</p>
+        <div class="cta">
+          <!-- Ganti href dengan tautan unduhan sungguhan. -->
+          <a class="tombol" href="#">Download for Windows</a>
+          <button class="tombol kedua" type="button" id="ulangHero"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Start again</button>
+        </div>
+        <!-- Ajakan menggulir (user 2026-10-26): lingkaran dengan panah ke bawah, ke judul sesudah desktop. -->
+        <a class="gulir-bawah" href="#kenalSeret" aria-label="Scroll down"><!-- KOREKSI (bagian fitur dihapus): dulu href="#fitur" --><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="gulir-teks" aria-hidden="true">Scroll to find your fit</span></a>
+      </div>
+    </div>
+    <!-- Nisan (user 2026-10-26, "hapus bagian ini"): judul sesudah desktop pembuka (.hero-teks #pembukaTeks), "Seven
+         boxes. Everything you open.", "Press Alt + Space. Pick a number. Done." dengan tombol Alt & Space yang ikut
+         tertekan bersama peragaan, dan Download for Windows. Download & ajakan menggulir sekarang di halaman akhir
+         peragaan (.hero-akhir). -->
+    <!-- Nisan (user 2026-10-27, "gausah ada ngecilin gitu jadi scroll biasa aja"): halaman kosong #kosong sesudah
+         pembuka, tempat desktop pembuka mengecil. -->
+  </section>
+
+  <!-- Drag and drop (user 2026-10-27, eksperimen 3, "diantara bagian 1 dan 2 kasih blank space yang buat penjelasan
+       fitur drag and drop, tapi cuma judul, penjelasan, dan tombol ajakan swipe gitu kebawah, terus setelah itu buat juga
+       sama kaya pas bagian 1 tapi animasinya cuma tampilin fitur drag and drop gitu, bg nya pakai yang bagian pertama
+       juga"): satu layar putih berisi judul, satu kalimat, dan ajakan menggulir, lalu satu layar desktop selebar
+       pembuka (wallpaper yang sama) yang cuma memperagakan tarikan dari bar ke File Explorer (seretSiklus()). -->
+  <section class="kenal" id="kenalSeret">
+    <h2>Drag and drop.</h2>
+    <p class="pengantar">Pull a file or folder out of a box and drop it into File Explorer. A copy lands where you let go.</p>
+    <!-- Nisan (user 2026-10-27, "hapus animasinya ... jadi clean aja"): div.kenal-panggung #panggungKenal, peragaan seret
+         tanpa desktop di bawah kalimat ini. -->
+    <a class="gulir-bawah" href="#seret" aria-label="Scroll down"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="gulir-teks" aria-hidden="true">Scroll to see it</span></a>
+  </section>
+  <section class="seret-hal" id="seret" data-loop="seret">
+    <div class="seret-desk" id="deskSeret" role="img" aria-label="Simulation on a Windows desktop: with File Explorer open, the cursor drags a PDF and then a folder out of the Sevdeck bar and drops them into the folder, where copies appear.">
+      <div class="skala terang berwarna">
+        <div class="win"></div>
+        <div class="hero-mock seret-mock"><div class="bar-seret"></div></div>
+        <div class="hantu-h"></div>
+        <svg class="kursor-h" viewBox="0 0 14 22" aria-hidden="true"><path d="M1 1v17.2l4.3-4.1 2.9 6.4 2.9-1.3-2.8-6.3H14.2z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Nisan (user 2026-10-27, eksperimen 3, "yang bagian jenis jenis file yang bisa ditambah hapus aja"): pasangan
+       halaman jenis item, section.kenal #kenalJenis ("Room for anything." / "Apps, files, folders, sites, and text you
+       paste all the time. Each one fits in a box.") dan desktop #jenis (jenisSiklus()). -->
+
+  <!-- Profiles (user 2026-10-27, eksperimen 3, "lakuin hal yang sama buat fitur profiles"): susunannya sama dengan Drag
+       and drop & jenis item, satu layar putih penjelasan lalu satu desktop selayar (profilDeskSiklus()). -->
+  <section class="kenal" id="kenalProfil">
+    <h2>Profiles for your whole day.</h2>
+    <p class="pengantar">Work, school, and weekends each get their own seven boxes and their own color. Switch with Tab or a click.</p>
+    <a class="gulir-bawah" href="#profilDesk" aria-label="Scroll down"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="gulir-teks" aria-hidden="true">Scroll to see it</span></a>
+  </section>
+  <section class="seret-hal" id="profilDesk" data-loop="profilDesk">
+    <div class="seret-desk" id="deskProfil" role="img" aria-label="Simulation on a Windows desktop: the Sevdeck bar switches from the Work profile to School and then Weekend, each with its own boxes and color.">
+      <div class="skala terang berwarna">
+        <div class="hero-mock seret-mock"><div class="deretan-profil"></div><div class="bar-profil"></div></div>
+        <p class="jenis-label" aria-hidden="true"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Profil otomatis dari folder (user 2026-10-27, eksperimen 3, "habis bagian profiles, tambah sama kaya sebelum
+       sebelumnya ... fitur kaya profil dengan item yang keisi otomatis dari folder yang dipilih"): susunannya sama,
+       satu layar putih penjelasan lalu satu desktop selayar (otoSiklus()). -->
+  <section class="kenal" id="kenalOto">
+    <h2>Profiles that fill themselves.</h2>
+    <p class="pengantar">Point a profile at a folder like Downloads or Screenshots. Its seven boxes always hold the newest files, all on their own.</p>
+    <a class="gulir-bawah" href="#oto" aria-label="Scroll down"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5l4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="gulir-teks" aria-hidden="true">Scroll to see it</span></a>
+  </section>
+  <section class="seret-hal" id="oto" data-loop="oto">
+    <div class="seret-desk" id="deskOto" role="img" aria-label="Simulation on a Windows desktop: a Sevdeck profile filled from the Downloads folder shows the seven newest downloads; new files slide into the first box. Then a profile filled from the Screenshots folder does the same with a new screenshot.">
+      <div class="skala terang berwarna">
+        <div class="hero-mock seret-mock"><div class="deretan-oto"></div><div class="bar-oto"></div></div>
+        <p class="jenis-label" aria-hidden="true"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Nisan (user 2026-10-27, eksperimen 3, "bagian ini hapus aja semuanya"): section.bagian.fitur #fitur, satu layar
+       berfoto fitur-latar.jpg dengan tujuh peragaan bertumpuk (Text ready to paste, Room for anything, Profiles, More
+       on a right-click, Light or dark, Your shortcut, Names on / off; .fitur-daftar berisi judul + kalimat masing-
+       masing) dan bar mini tujuh kotak #fiturBar di bawahnya yang memilih peragaan dan menyatu jadi penjelasan.
+       Drag and drop, jenis item, dan Profiles sekarang punya pasangan halamannya sendiri di atas. -->
+
+  <!-- Nisan (user 2026-10-28, "hapus semua bagian ini"): section.lainnya #lainnya, kolom putih 30% berisi nama fitur (Item types, Paste text, Profile colors, Shortcuts) dan desktop 70% bersudut bulat yang memperagakan fitur terpilih. -->
+
+  <section class="penutup abu" id="unduh">
+    <div class="lebar" data-reveal>
+      <svg class="ikon-besar" viewBox="0 0 100 100" role="img" aria-label="Sevdeck icon">
+        <rect width="100" height="100" rx="22" fill="#000"/>
+        <g transform="translate(8.8 33.2) scale(0.1)">
+          <g stroke="#000" stroke-width="12" fill="#f4efe7">
+            <rect class="lk" x="0" y="0" width="200" height="326" rx="72"/>
+            <rect class="lk" x="79" y="0" width="200" height="326" rx="72"/>
+            <rect class="lk" x="158" y="0" width="200" height="326" rx="72"/>
+            <rect class="lk" x="237" y="0" width="200" height="326" rx="72"/>
+            <rect class="lk" x="316" y="0" width="200" height="326" rx="72"/>
+            <rect class="lk" x="395" y="0" width="200" height="326" rx="72"/>
+            <rect class="lk" x="474" y="0" width="326" height="326" rx="72" fill="#0a6cff"/>
+          </g>
+          <path class="tujuh" d="M572 99h133l-80 140" fill="none" stroke="#fff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <h2>Sevdeck</h2> <!-- KOREKSI (user 2026-10-26): dulu "What you need is<br>one number away." -->
+      <!-- KOREKSI (user 2026-10-26, "hapus alt space ... ubah pakai tagline"): dulu kalimat "Install it once, then press
+           Alt + Space whenever you need it." -->
+      <p class="tagline">More than a deck.</p>
+      <div class="cta">
+        <!-- Ganti href dengan tautan unduhan sungguhan. -->
+        <a class="tombol" href="#">Download for Windows</a>
+      </div>
+      <p class="kecil">Windows 10 and 11 · Version 1.20</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="kaki">
+  <div class="lebar">
+    <span>Made by <a href="https://www.instagram.com/rojaryg" target="_blank" rel="noopener">@rojaryg</a></span>
+    <span>© 2026 Sevdeck</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const kurangi = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const tidur = ms => new Promise(r => setTimeout(r, ms));
+  const $ = s => document.querySelector(s);
+
+  // Nisan (user 2026-10-27, "aku mau wallpaper nya jadi ini aja"): wallpaper() lama, pegunungan berlapis di atas danau.
+  // Nisan (user 2026-10-27, "bg nya jadi pakai ini aja"): wallpaper() bukit hijau gaya impresionis (lapisan dasar +
+  // ±26 ribu sapuan kuas berbenih). Penggantinya foto lavender.jpg, langsung di --wp (:root).
+
+  // ── Ikon (digambar sendiri; bukan ikon app sungguhan) ─────────────────
+  const ubin = (bg, isi, garis) =>
+    `<svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><rect x=".5" y=".5" width="45" height="45" rx="10.5" fill="${bg}"${garis ? ' stroke="rgba(255,255,255,.14)"' : ''}/>${isi}</svg>`;
+  const S = 'fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"';
+  const IKON = {
+    surel: ubin('#1f7cf2', `<rect x="12" y="15" width="22" height="16" rx="3" ${S}/><path d="M13.5 17.5 23 24.5l9.5-7" ${S}/>`),
+    kalk: ubin('#ff9f0a', `<rect x="15" y="11" width="16" height="24" rx="3" fill="none" stroke="#1d1d1f" stroke-width="2"/><rect x="18" y="14.5" width="10" height="4" rx="1" fill="#1d1d1f"/><g fill="#1d1d1f"><circle cx="19.5" cy="23" r="1.3"/><circle cx="23" cy="23" r="1.3"/><circle cx="26.5" cy="23" r="1.3"/><circle cx="19.5" cy="27" r="1.3"/><circle cx="23" cy="27" r="1.3"/><circle cx="26.5" cy="27" r="1.3"/><circle cx="19.5" cy="31" r="1.3"/><circle cx="23" cy="31" r="1.3"/><circle cx="26.5" cy="31" r="1.3"/></g>`),
+    catatan: ubin('#ffd60a', `<path d="M16 30.5l1.2-4.6L27.6 15.5a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L20.6 29.3z" fill="none" stroke="#1d1d1f" stroke-width="2" stroke-linejoin="round"/>`),
+    terminal: ubin('#1d1d1f', `<path d="M15 18l5 5-5 5" fill="none" stroke="#30d158" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 29h8" stroke="#30d158" stroke-width="2.2" stroke-linecap="round"/>`, true),
+    musik: ubin('#ff375f', `<path d="M20 29.5V16.5l11-2.5v13" ${S}/><circle cx="17.5" cy="29.5" r="3" fill="#fff"/><circle cx="28.5" cy="27" r="3" fill="#fff"/>`),
+    kamera: ubin('#3a3a3c', `<rect x="12" y="17" width="22" height="15" rx="3" ${S}/><path d="M18.5 17l1.5-3h6l1.5 3" ${S}/><circle cx="23" cy="24.5" r="3.6" ${S}/>`),
+    peta: ubin('#30a14e', `<path d="M13 16l6.5-2.5 7 2.5 6.5-2.5v16.5L26.5 32.5l-7-2.5L13 32.5z" ${S}/><path d="M19.5 13.5v16.5M26.5 16v16.5" ${S}/>`),
+    jam: ubin('#1d1d1f', `<circle cx="23" cy="23" r="10" ${S}/><path d="M23 17.5V23l3.5 2.5" ${S}/>`, true),
+    cuaca: ubin('#4a9ff5', `<circle cx="19" cy="19" r="4" fill="#ffd60a"/><path d="M17 31h12a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.3 1.5A3.8 3.8 0 0 0 17 31z" fill="#fff"/>`),
+    foto: ubin('#f5f5f7', `<circle cx="23" cy="17.5" r="4.2" fill="#ff9f0a" opacity=".9"/><circle cx="28.5" cy="23" r="4.2" fill="#30d158" opacity=".9"/><circle cx="23" cy="28.5" r="4.2" fill="#0a84ff" opacity=".9"/><circle cx="17.5" cy="23" r="4.2" fill="#ff375f" opacity=".9"/>`),
+    kontak: ubin('#8e8e93', `<circle cx="23" cy="19" r="4.5" ${S}/><path d="M14.5 32c1.5-4.5 4.6-6.5 8.5-6.5s7 2 8.5 6.5" ${S}/>`),
+    gir: ubin('#636366', `<circle cx="23" cy="23" r="3.6" ${S}/><path d="M23 13.5v3M23 29.5v3M13.5 23h3M29.5 23h3M16.3 16.3l2.1 2.1M27.6 27.6l2.1 2.1M16.3 29.7l2.1-2.1M27.6 18.4l2.1-2.1" ${S}/>`),
+    perekam: ubin('#ff375f', `<rect x="19.5" y="12.5" width="7" height="13" rx="3.5" ${S}/><path d="M16 23a7 7 0 0 0 14 0M23 30v3.5" ${S}/>`),
+  };
+  const folder = `<svg width="44" height="36" viewBox="0 0 44 36" aria-hidden="true"><path d="M2 6a4 4 0 0 1 4-4h10l4 4h18a4 4 0 0 1 4 4v20a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#3d8be6"/><path d="M2 12a4 4 0 0 1 4-4h32a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#64b0f4"/></svg>`;
+  const berkas = (ext, warna) => `<svg width="36" height="44" viewBox="0 0 36 44" aria-hidden="true"><path d="M5 2h19l10 10v28a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#f5f5f7"/><path d="M24 2v8a2 2 0 0 0 2 2h8z" fill="#c7c7cc"/><rect x="6" y="25" width="24" height="11" rx="2.5" fill="${warna}"/><text x="18" y="33.2" text-anchor="middle" font-size="7.6" font-weight="700" fill="#fff" font-family="Segoe UI, system-ui, sans-serif">${ext}</text></svg>`;
+  const teks = ubin('#2c2c2e', `<path d="M15 17h16M15 23h16M15 29h10" ${S}/>`);
+  const disalin = `<svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="17" fill="#30d158"/><path d="M15.5 23.5l5 5L31 18" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const plus = `<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 3v16M3 11h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const garisKosong = `<svg class="garis" viewBox="0 0 112 112" aria-hidden="true"><rect x=".75" y=".75" width="110.5" height="110.5" rx="29.25" fill="none" stroke="rgba(255,255,255,.24)" stroke-width="1.5" stroke-dasharray="6 4"/></svg>`;
+  const ikonTray = `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#0a6cff"/><path d="M20 20h24L30 46" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  // Ikon kecil 16 px untuk Explorer.
+  const map16 = `<svg viewBox="0 0 16 16"><path d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3.2l1.5 1.5H13A1.5 1.5 0 0 1 14.5 5.5v6.5a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 12z" fill="#e8a93a"/><path d="M1.5 6.5A1.5 1.5 0 0 1 3 5h10a1.5 1.5 0 0 1 1.5 1.5V12a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 12z" fill="#ffc94a"/></svg>`;
+  const dok16 = w => `<svg viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v9a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z" fill="#fff" stroke="#bdbdbd" stroke-width=".8"/><path d="M9.5 1.5v3h3" fill="#cfcfcf"/><rect x="2" y="8" width="8" height="5" rx="1" fill="${w}"/></svg>`;
+
+  // Garis dasar nama per jenis (barwidget.cpp gambarKotak: folder 82, file 85, lainnya 87).
+  const gambarIkon = it =>
+    it.j === 'app' ? IKON[it.ikon] :
+    it.j === 'folder' ? folder :
+    it.j === 'file' ? berkas(it.ext, it.warna) :
+    it.j === 'situs' ? `<div class="huruf">${it.huruf}</div>` :
+    it.j === 'disalin' ? disalin : teks;
+  const garisDasar = j => j === 'folder' ? 82 : j === 'file' ? 85 : 87;
+  function kotakHTML(it, no, pop) {
+    if (!it) return `<div class="kotak kosong" data-no="${no}">${garisKosong}<span class="no">${no}</span><span class="tambah">${plus}</span></div>`;
+    if (it.j === 'isi') return `<div class="kotak diisi" data-no="${no}"><span class="no">${no}</span><span class="tambah">${plus}</span></div>`;
+    return `<div class="kotak${pop ? ' pop' : ''}" data-no="${no}"><span class="no">${no}</span><div class="ikon">${gambarIkon(it)}</div><span class="nama" style="--bl:${garisDasar(it.j)}px">${it.n}</span></div>`;
+  }
+
+  // ── Taskbar Windows 11 (semua desktop). Sevdeck tidak disematkan di sini: ikonnya di balik ^. Pembuka menambah ikon
+  // yang tersemat sendiri (user 2026-10-26; KOREKSI: dulu "Sevdeck TIDAK disematkan" berlaku untuk semua desktop). ──
+  const SI = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+  const TB_APP = {
+    explorer: `<svg viewBox="0 0 24 24"><path d="M2.5 6.5A2.5 2.5 0 0 1 5 4h4.2l2 2H19a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 19 20H5a2.5 2.5 0 0 1-2.5-2.5z" fill="#e8a93a"/><path d="M2.5 10A2 2 0 0 1 4.5 8h15a2 2 0 0 1 2 2v7.5A2.5 2.5 0 0 1 19 20H5a2.5 2.5 0 0 1-2.5-2.5z" fill="#ffc94a"/></svg>`,
+    browser: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#2f86ec"/><path d="M2.6 9h18.8M2.6 15h18.8M12 2c3 2.8 3 17.2 0 20M12 2c-3 2.8-3 17.2 0 20" fill="none" stroke="#cfe5ff" stroke-width="1.3"/></svg>`,
+    surel: `<svg viewBox="0 0 24 24"><rect x="2" y="4.5" width="20" height="15" rx="3" fill="#1f7cf2"/><path d="M4 7.5l8 6 8-6" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    // Nisan (user 2026-10-27, "logo kaya apple music itu hapus aja"): ikon musik merah di taskbar.
+    terminal: `<svg viewBox="0 0 24 24"><rect x="2" y="3.5" width="20" height="17" rx="3" fill="#2b2b2e" stroke="#4a4a4e"/><path d="M6.5 9l3 3-3 3M12 15.5h5" fill="none" stroke="#30d158" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    pengaturan: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="#6e6e73"/><circle cx="12" cy="12" r="3" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M12 5.5v2M12 16.5v2M5.5 12h2M16.5 12h2M7.4 7.4l1.4 1.4M15.2 15.2l1.4 1.4M7.4 16.6l1.4-1.4M15.2 8.8l1.4-1.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  };
+  // Bahasa papan ketik seperti di taskbar ("ENG", "IND"), dari bahasa browser pengunjung.
+  const kodeBahasa = (() => {
+    const b = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    return { en: 'ENG', id: 'IND', ms: 'MSA', ja: 'JPN', ko: 'KOR', zh: 'CHN', de: 'DEU', fr: 'FRA', es: 'ESP', nl: 'NLD', pt: 'POR' }[b] || b.toUpperCase();
+  })();
+  // Nisan (user 2026-10-27, "hapus logo yang windows di paling kiri"): tombol Start (START, .tb-mulai) di ujung kiri
+  // deretan ikon taskbar.
+  const TASKBAR = `
+    <span class="tb-tengah">
+      ${Object.entries(TB_APP).map(([k, v]) => `<span class="tb-app${k === 'explorer' || k === 'browser' ? '' : ' jalan'}" data-app="${k}">${v}</span>`).join('')}
+    </span>
+    <span class="tray">
+      <span class="chevron"><svg viewBox="0 0 16 16" ${SI}><path d="M3.5 10.5 8 6l4.5 4.5"/></svg></span>
+      <span class="bahasa">${kodeBahasa}</span>
+      <span class="qs">
+        <svg viewBox="0 0 16 16" ${SI}><path d="M1.2 6.2a10 10 0 0 1 13.6 0M3.4 8.6a6.8 6.8 0 0 1 9.2 0M5.6 11a3.6 3.6 0 0 1 4.8 0"/><circle cx="8" cy="13.3" r=".9" fill="currentColor" stroke="none"/></svg>
+        <svg viewBox="0 0 16 16" ${SI}><path d="M2 6.2h2.6L8 3.2v9.6l-3.4-3H2z"/><path d="M10.6 6a2.8 2.8 0 0 1 0 4M12.4 4.3a5.4 5.4 0 0 1 0 7.4"/></svg>
+        <svg viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="4" width="15" height="8" rx="2"/><path d="M18.2 6.6v2.8" stroke-linecap="round"/><rect x="3.2" y="5.7" width="9.4" height="4.6" rx=".9" fill="currentColor" stroke="none"/></svg>
+      </span>
+      <span class="jamtb"><span class="jam">9:15 AM</span><span class="tgl">10/26/2026</span></span>
+    </span>`;
+  document.querySelectorAll('.taskbar').forEach(t => { t.innerHTML = TASKBAR; t.setAttribute('aria-hidden', 'true'); });
+  // Jam & tanggal taskbar = waktu pengunjung sekarang, dengan format negaranya (seperti taskbar-nya sendiri).
+  const setelJam = () => {
+    const d = new Date();
+    const jam = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const tgl = d.toLocaleDateString(undefined);
+    document.querySelectorAll('.jamtb .jam').forEach(e => { e.textContent = jam; });
+    document.querySelectorAll('.jamtb .tgl').forEach(e => { e.textContent = tgl; });
+  };
+  setelJam(); setInterval(setelJam, 15000);
+  // Ikon tersembunyi di balik ^ (dipakai pembuka dan bagian Where), dengan Sevdeck di antaranya.
+  const pasangFlyout = chevron => {
+    chevron.insertAdjacentHTML('beforeend', `
+      <span class="flyout">
+        <span><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .3-5.6A4 4 0 0 0 4.4 7.6a2.5 2.5 0 0 0 .1 4.9z"/></svg></span>
+        <span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 1.8 13 4v4c0 3-2.2 5.2-5 6.2C5.2 13.2 3 11 3 8V4z"/></svg></span>
+        <span class="septa">${ikonTray}<span class="tooltip">Sevdeck</span></span>
+        <span><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="#30d158"/></svg></span>
+        <span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M5 7h6M5 9.5h4"/></svg></span>
+      </span>`);
+    return { flyout: chevron.querySelector('.flyout'), septa: chevron.querySelector('.septa') };
+  };
+
+  // ── Isi tiga profil (contoh) ──────────────────────────────────────────
+  const PROFIL = [
+    // aksen = tema gelap, terang = tema terang (tema.h daftarAksen).
+    { nama: 'Work', aksen: '#0a84ff', terang: '#0a6cf0', isi: [
+      { j: 'app', n: 'Mail', ikon: 'surel', jendela: 'surel' },
+      { j: 'folder', n: 'Q3 Reports', jendela: 'folder' },
+      { j: 'situs', n: 'Dashboard', huruf: 'D', jendela: 'situs', alamat: 'dashboard.company.com' },
+      { j: 'app', n: 'Calculator', ikon: 'kalk', jendela: 'kalk' },
+      { j: 'file', n: 'Monday meeting.pdf', ext: 'PDF', warna: '#e5342b', jendela: 'dok' },
+      { j: 'teks', n: 'Signature' },
+      null ] },
+    { nama: 'School', aksen: '#209a40', terang: '#208439', isi: [
+      { j: 'app', n: 'Notes', ikon: 'catatan' },
+      { j: 'folder', n: 'Assignments' },
+      { j: 'situs', n: 'Campus Portal', huruf: 'P' },
+      { j: 'file', n: 'Exam schedule.pdf', ext: 'PDF', warna: '#e5342b' },
+      { j: 'app', n: 'Terminal', ikon: 'terminal' },
+      { j: 'teks', n: 'Student ID' },
+      null ] },
+    { nama: 'Weekend', aksen: '#ff2279', terang: '#e30258', isi: [
+      { j: 'app', n: 'Music', ikon: 'musik' },
+      { j: 'folder', n: 'Holiday photos' },
+      { j: 'situs', n: 'Recipes', huruf: 'R' },
+      { j: 'file', n: 'Movies to watch.txt', ext: 'TXT', warna: '#636366' },
+      { j: 'teks', n: 'Home address' },
+      null, null ] },
+  ];
+
+  // ── Bar ───────────────────────────────────────────────────────────────
+  function buatBar(host, { items, pilih = 0, pil = true, cahaya = false, aksen = '#0a84ff' }) {
+    host.classList.add('barwrap');
+    if (!pil) host.classList.add('tanpa-pil');
+    host.innerHTML = `${cahaya ? '<div class="cahaya"></div>' : ''}<div class="bar"><div class="isi"></div><div class="cincin"></div></div>${pil ? '<div class="pilnama"><span></span></div>' : ''}`;
+    host.style.setProperty('--ring', aksen);
+    const isi = host.querySelector('.isi');
+    const pilEl = host.querySelector('.pilnama span');
+    let daftar = items.slice(), i = pilih;
+    const tandai = () => {
+      [...isi.children].forEach((k, n) => k.classList.toggle('pilih', n === i));
+      host.style.setProperty('--i', i);
+      if (pilEl) pilEl.textContent = daftar[i] && daftar[i].j !== 'isi' ? daftar[i].n : 'Empty box';
+    };
+    const render = () => { isi.innerHTML = daftar.map((it, n) => kotakHTML(it, n + 1)).join(''); tandai(); };
+    render();
+    return {
+      el: host,
+      get daftar() { return daftar; },
+      get indeks() { return i; },
+      pilih(n) { i = n; tandai(); },
+      aksen(c) { host.style.setProperty('--ring', c); },
+      sembunyi(b) { host.classList.toggle('tersembunyi', b); },
+      pasang(n, it, pop = true) { daftar = daftar.slice(); daftar[n] = it; isi.children[n].outerHTML = kotakHTML(it, n + 1, pop); tandai(); },
+      async ganti(baru) {
+        host.classList.add('ganti');
+        await tidur(kurangi ? 0 : 120);
+        daftar = baru.slice(); render();
+        host.classList.remove('ganti');
+      },
+      set pilTeks(t) { if (pilEl) pilEl.textContent = t; },
+      kotak(n) { return isi.children[n]; },
+    };
+  }
+
+  // ── Skala mockup dalam bingkai ────────────────────────────────────────
+  // data-ph: batas tinggi sebagai bagian dari tinggi desktop di sekitarnya, supaya mockup tidak keluar dari desktop.
+  const fits = [...document.querySelectorAll('.fit')];
+  const pasKan = el => {
+    const w = +el.dataset.w, h = +el.dataset.h;
+    let s = Math.min(1, el.clientWidth / w);
+    const wadah = el.parentElement;
+    if (el.dataset.ph && wadah.clientHeight) s = Math.min(s, (wadah.clientHeight * +el.dataset.ph) / h);
+    el.style.height = `${h * s}px`;
+    const isi = el.firstElementChild;
+    isi.style.width = `${w}px`;
+    isi.style.transform = `translateX(-50%) scale(${s})`;
+  };
+  const ro = new ResizeObserver(() => fits.forEach(pasKan));
+  fits.forEach(el => { pasKan(el); ro.observe(el.parentElement); });
+
+  // ── Deretan profil ───────────────────────────────────────────────────
+  // Tombol + dan Pengaturan persis profil.cpp gambarDeretan(): + garis 1,5 ujung datar sepanjang 7; roda gigi
+  // gambar.h glifRodaGigi(): delapan gigi (kaki jari 4,9 lebar ±13°, puncak jari 6,7 lebar ±8,5°) dan lubang jari 2,1,
+  // garis 1,4 bersambung bulat. Titik-titiknya dihitung dari angka itu. KOREKSI (user 2026-10-26, "tombol settings di
+  // website belum sama kaya di apps"): dulu lingkaran 2,4 dengan delapan garis jari-jari, seperti matahari.
+  const tabPlus = '<span class="tab ikon-tab" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M4.5 8h7M8 4.5v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="butt"/></svg></span>';
+  const tabGir = '<span class="tab ikon-tab" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M6.9,3.23L7.01,1.37L8.99,1.37L9.1,3.23L10.6,3.84L11.99,2.61L13.39,4.01L12.16,5.4L12.77,6.9L14.63,7.01L14.63,8.99L12.77,9.1L12.16,10.6L13.39,11.99L11.99,13.39L10.6,12.16L9.1,12.77L8.99,14.63L7.01,14.63L6.9,12.77L5.4,12.16L4.01,13.39L2.61,11.99L3.84,10.6L3.23,9.1L1.37,8.99L1.37,7.01L3.23,6.9L3.84,5.4L2.61,4.01L4.01,2.61L5.4,3.84Z"/><circle cx="8" cy="8" r="2.1"/></svg></span>';
+  // nama: tab profilnya; bawaannya tiga profil contoh (desktop profil otomatis memakai tab Downloads & Screenshots).
+  function buatDeretan(el, saatKlik, nama = PROFIL.map(p => p.nama)) {
+    el.classList.add('deretan');
+    el.innerHTML = '<span class="dpil"></span>' + nama.map((t, n) => `<button class="tab${n ? '' : ' aktif'}" type="button" data-p="${n}">${t}</button>`).join('') + tabPlus + tabGir;
+    const tabs = [...el.querySelectorAll('.tab[data-p]')], dpil = el.querySelector('.dpil');
+    let aktif = 0;
+    const letak = () => { const t = tabs[aktif]; dpil.style.left = `${t.offsetLeft}px`; dpil.style.width = `${t.offsetWidth}px`; };
+    letak();
+    if (document.fonts) document.fonts.ready.then(letak);
+    if (saatKlik) tabs.forEach(t => t.addEventListener('click', () => saatKlik(+t.dataset.p)));
+    return {
+      get aktif() { return aktif; },
+      tab(p) { return tabs[p]; },
+      ke(p) { aktif = p; tabs.forEach((t, n) => t.classList.toggle('aktif', n === p)); letak(); },
+    };
+  }
+
+  // ── Bagian yang tampak (animasi cuma jalan selama terlihat) ──────────
+  const tampak = {}, penunggu = {};
+  const tungguTampak = k => tampak[k] ? Promise.resolve() : new Promise(r => (penunggu[k] = penunggu[k] || []).push(r));
+  // Tempo semua peragaan otomatis (jeda, ketikan, gerak kursor): 1,5 x lebih lambat dari hitungan aslinya, supaya
+  // mudah diikuti (user 2026-10-26, "jangan terlalu cepet animasinya"). Gerak app sendiri (bar muncul, sorot) tetap.
+  const TEMPO = 1.5;
+  // Gerak kursor 1,5 x lebih cepat dari TEMPO di atas (user 2026-10-26, "cursor nya setengah kali lebih cepat dari
+  // sekarang"); jeda & ketikan tetap. KOREKSI: dulu gerakKe() memakai TEMPO juga.
+  // Gerak kursor pembuka 1,5 x lebih cepat lagi (user 2026-10-26, "bukan animasi secara keseluruhan gitu tapi
+  // pergerakan cursornya"); jeda tetap TEMPO. KOREKSI: dulu "const TEMPO_KURSOR = TEMPO / 1.5;", lalu (hari yang sama)
+  // jeda pembuka juga dibagi 1,5 lewat "TEMPO_BAGIAN = { hero: TEMPO / 1.5 }", yang dibatalkan user.
+  const TEMPO_KURSOR = TEMPO / 1.5 / 1.5; // gerakKe() cuma dipakai pembuka
+  const tunggu = async (ms, k) => { await tidur(ms * TEMPO); await tungguTampak(k); };
+  // Peragaan di panggung fitur (data-fitur) cuma jalan kalau terlihat DAN sedang dipilih; yang lain cukup terlihat.
+  // KOREKSI (user 2026-10-27, bagian digabung): dulu "tampak[k] = e.isIntersecting" saja, satu peragaan per bagian.
+  const terlihat = {};
+  function setelTampak(el) {
+    const k = el.dataset.loop;
+    tampak[k] = !!terlihat[k] && (el.dataset.fitur === undefined || el.classList.contains('aktif'));
+    if (tampak[k] && penunggu[k]) { penunggu[k].forEach(f => f()); penunggu[k] = []; }
+  }
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    terlihat[e.target.dataset.loop] = e.isIntersecting;
+    setelTampak(e.target);
+  }), { threshold: 0.2 });
+  document.querySelectorAll('[data-loop]').forEach(el => io.observe(el));
+
+  // Nisan (user 2026-10-27, eksperimen 3, "bagian ini hapus aja semuanya"): pemilih bagian fitur (itemFitur,
+  // layarFitur, KOTAK_FITUR, bar mini tujuh kotak #barFitur dengan penjelasan .uraian-bar / .gabung, keFitur(), klik
+  // kotak, tautan nama fitur baris atas ke #fitur dengan data-fitur) dan tekan(), yang cuma dipakai di sana.
+  const deskPembuka = document.getElementById('heroDesk');
+  const cekGulir = () => {
+    document.documentElement.classList.toggle('gulir', scrollY > 8);
+    // Nisan (user 2026-10-27, header dihapus): html.lewat, header yang muncul sesudah pembuka & fitur digulir lewat.
+    // Logo kiri atas jadi hitam begitu tepi bawah desktop pembuka naik melewatinya (60: kira-kira bawah logo).
+    // KOREKSI (user 2026-10-27, "gausah ada ngecilin"): sempat diatur kecilkanPembuka() saat desktop pembuka mengecil.
+    // Dua keadaan (lihat CSS .situs-atas): lewat-pembuka dari tepi bawah pembuka seperti dulu; .gelap per anak baris
+    // atas dari apa yang ada tepat di bawah titik tengah anak itu, gelap kecuali di atas desktop berwallpaper.
+    // KOREKSI: dulu html.merek-gelap dari titik tengah seluruh baris (getComputedStyle(...).backgroundImage), dan
+    // sebelumnya memakai syarat lewat-pembuka.
+    // Header pembuka pergi & header mengambang datang lewat CSS (.situs-atas, .kepala-apung). KOREKSI (user 2026-10-28,
+    // header dipisah): dulu satu header yang berganti bentuk, ditutupi situsAtasEl.animate() naik dari bawah.
+    document.documentElement.classList.toggle('lewat-pembuka', scrollY >= deskPembuka.offsetHeight - 60);
+    // .gelap cuma untuk header pembuka; header mengambang warnanya tetap.
+    const kotakGambar = latarGambar.map(el => el.getBoundingClientRect());
+    [...situsAtasEl.children].forEach(anak => {
+      const r = anak.getBoundingClientRect(), x = (r.left + r.right) / 2, y = (r.top + r.bottom) / 2;
+      anak.classList.toggle('gelap', !kotakGambar.some(b => b.left <= x && b.right >= x && b.top <= y && b.bottom >= y));
+    });
+  };
+  const situsAtasEl = $('#situsAtas');
+  // Bagian berlatar gambar (wallpaper desktop). KOREKSI: dulu juga "section.fitur" (bagian fitur, dihapus), yang
+  // berfoto cuma di layar lebar.
+  const latarGambar = [...document.querySelectorAll('.hero-desk, .seret-desk')]; // KOREKSI: sempat juga .lainnya-panggung (dihapus)
+  addEventListener('scroll', cekGulir, { passive: true });
+  addEventListener('resize', cekGulir);
+  cekGulir();
+  // Nisan (user 2026-10-27, "bagian 1 gausah ada ngecilin gitu jadi scroll biasa aja"): kecilkanPembuka() dan
+  // KECIL_AKHIR, desktop pembuka yang mengecil mengikuti guliran ke halaman kosong.
+  // Nisan (user 2026-10-27, header kembali ke atas tanpa tautan bagian): ioNav, yang menandai tautan bagian aktif dan
+  // menyembunyikan pil navigasi di layar terakhir (html.akhir).
+
+  // ── Pembuka: simulasi orang memakai Sevdeck ─────────────────────────
+  const heroDesk = $('#heroDesk'), skala = $('#skala'), mockHero = $('#mockHero'), winHero = $('#winHero'), pdfHero = $('#pdfHero');
+  const ketukan = $('#ketukan'), keteranganEl = $('#keterangan'), kursorH = $('#kursorHero'), hantuH = $('#hantuHero'), menuHero = $('#menuHero');
+  // Profil Work di pembuka: kotak 6 berisi folder, supaya file (kotak 5) dan folder sama-sama bisa ditarik ke Explorer.
+  const KERJA_HERO = PROFIL[0].isi.slice(0, 5).concat([{ j: 'folder', n: 'Design assets' }, null]);
+  let isiKerjaH = KERJA_HERO.slice(); // ikut berubah saat kotak 7 diisi, supaya kembali ke Work tetap berisi
+  const barHero = buatBar($('#barHero'), { items: KERJA_HERO, pilih: 0, cahaya: true, aksen: PROFIL[0].terang });
+  const panelHero = $('#panelHero'), petunjukHero = $('#petunjukHero'), dialogHero = $('#dialogHero'), paneFileH = $('#paneFileH');
+  const relH = [...panelHero.querySelectorAll('.rel-item')], paneH = [...panelHero.querySelectorAll('.pane')];
+  $('#berkasBesarH').innerHTML = berkas('PDF', '#e5342b');
+  const deretanHero = buatDeretan($('#deretanHero'));
+  const trayHero = pasangFlyout(skala.querySelector('.chevron'));
+  const chevronHero = skala.querySelector('.chevron');
+  // Sevdeck tersemat di taskbar pembuka, sesudah app lain (app: Pengaturan › Umum › Taskbar atau langkah 5 tutorial,
+  // user 2026-10-26). Ikon taskbar-nya logo di ubin hitam (menutray.cpp citraIkonApp), tanpa garis "sedang jalan": bar
+  // Sevdeck tidak punya tombol taskbar sendiri.
+  skala.querySelector('.tb-tengah').insertAdjacentHTML('beforeend',
+    '<span class="tb-app" data-app="septadeck"><svg viewBox="0 0 100 100"><use href="#ikonApp"/></svg><span class="tooltip">Sevdeck</span></span>');
+  barHero.sembunyi(true);
+  let sH = 1, Wv = 0, Hv = 0, pusatBar = 0, kerjaH = 0;
+  const TB = 48; // tinggi taskbar Windows 11, piksel logis
+  // Batas atas jendela, panel, dan deretan profil: di bawah keterangan (top 28 + huruf 22 + jarak). KOREKSI (user
+  // 2026-10-27, keterangan pindah ke atas & navigasi tidak tampil di pembuka): dulu 56 / sH dan 60 / sH, di bawah
+  // navigasi yang ukurannya piksel layar.
+  const ATAS_KERJA = 84;
+  // Desktop logis 1:1. Bar lebih ke bawah karena taskbar disembunyikan (user 2026-10-27, "animasi app ... jadi aga
+  // kebawah, tapi hindari tabrakan sama taskbar"): pusat bar 55% tinggi layar, tapi pil petunjuk di bawahnya (pusat +
+  // 117) tetap di atas tanda tombol yang naik bersama taskbar (48 + 20 + 56 + 18 = 142 dari bawah), dan deretan profil
+  // (pusat - 130) di bawah keterangan atas (ATAS_KERJA). KOREKSI: dulu "Math.max(60 / sH + 130, kerjaH * 0.479)", 47,9%
+  // daerah kerja (PosisiBar::kTengahVertikal 383 / 800) di bawah navigasi.
+  function tataHero() {
+    const W = heroDesk.clientWidth, H = heroDesk.clientHeight;
+    sH = Math.min(1, W / 940);
+    Wv = W / sH; Hv = H / sH;
+    skala.style.width = `${Wv}px`; skala.style.height = `${Hv}px`; skala.style.transform = `scale(${sH})`;
+    kerjaH = Hv - TB;
+    pusatBar = Math.max(ATAS_KERJA + 130, Math.min(Hv * 0.55, Hv - 142 - 117));
+    mockHero.style.left = `${(Wv - 884) / 2}px`;
+    mockHero.style.top = `${pusatBar - 130}px`;
+  }
+  tataHero();
+  new ResizeObserver(tataHero).observe(heroDesk);
+  // Jendela utuh di tengah daerah kerja; Explorer lebih besar (daftar filenya jadi tempat jatuh tarikan dari bar).
+  // KOREKSI (user 2026-10-26, "jangan kepotong ditengah kebawah"): dulu Explorer mulai di pusat bar sampai bawah.
+  // PDF jadwal kuliah (user 2026-10-26): 860 lebar, setinggi Explorer, supaya halamannya muat utuh.
+  // Explorer hampir selayar (user 2026-10-27, "hampir nutup semua layar tapi masih ada yang kosong tipis"): sela 20 di
+  // kiri, kanan, dan bawah (taskbar disembunyikan), atasnya di bawah keterangan (ATAS_KERJA) supaya kalimat putihnya
+  // tidak jatuh di atas jendela putih. KOREKSI: dulu Explorer seukuran browser, "Math.min(980, Wv - 100)" x 560.
+  const SELA_JENDELA = 20;
+  function letakJendela(jenis, el = winHero) {
+    if (jenis === 'explorer') {
+      Object.assign(el.style, { width: `${Wv - 2 * SELA_JENDELA}px`, height: `${Hv - ATAS_KERJA - SELA_JENDELA}px`, left: `${SELA_JENDELA}px`, top: `${ATAS_KERJA}px` });
+      return;
+    }
+    // Browser 980 lebar sejak portalnya dilengkapi (user 2026-10-26; waktu itu selebar Explorer). KOREKSI: dulu 860 x 470.
+    const ww = Math.min(jenis === 'pdf' ? 860 : 980, Wv - 100);
+    const wh = Math.min(560, kerjaH - ATAS_KERJA - 12);
+    const top = Math.max(ATAS_KERJA, (kerjaH - wh) / 2 + 8);
+    Object.assign(el.style, { width: `${ww}px`, height: `${wh}px`, left: `${(Wv - ww) / 2}px`, top: `${top}px` });
+  }
+
+  // Kursor: meluncur di lengkung pendek dengan percepatan & perlambatan, seperti tangan di tetikus. Gambar seret
+  // (hantuH) ikut kursor selagi menyeret.
+  const pos = { x: 0, y: 0 };
+  let menyeret = false;
+  let zonaJatuh = null; // [kiri, atas, kanan, bawah] bagian daftar Explorer yang menerima lepasan, satuan logis
+  // Auto-hide: taskbar naik begitu kursor masuk ke pita bawah setinggi taskbar, dan turun lagi 400 ms sesudah kursor
+  // keluar. Selama flyout ^ atau menu tray terbuka taskbar ditahan, karena flyout menempel di taskbar.
+  const tbHero = skala.querySelector('.taskbar');
+  let tbTunda = 0;
+  if (!kurangi) tbHero.classList.add('tersembunyi');
+  function periksaTaskbar() {
+    if (kurangi) return;
+    const tahan = trayHero.flyout.classList.contains('buka') || menuHero.classList.contains('buka');
+    if (tahan || pos.y >= Hv - TB) {
+      clearTimeout(tbTunda); tbTunda = 0;
+      tbHero.classList.remove('tersembunyi');
+    } else if (!tbTunda && !tbHero.classList.contains('tersembunyi')) {
+      tbTunda = setTimeout(() => { tbTunda = 0; tbHero.classList.add('tersembunyi'); }, 400);
+    }
+  }
+  const letakKursor = (x, y) => {
+    pos.x = x; pos.y = y;
+    kursorH.style.transform = `translate(${x}px, ${y}px)`;
+    periksaTaskbar();
+    if (!menyeret) return;
+    hantuH.style.transform = `translate(${x}px, ${y}px)`; // titik nol = ujung kursor (isi hantuH menata dirinya)
+    // "+ Copy to" muncul begitu kursor sampai di Explorer, di tengah gerakan seret yang sama (bukan langkah sendiri).
+    if (zonaJatuh) hantuH.classList.toggle('di-atas', x > zonaJatuh[0] && x < zonaJatuh[2] && y > zonaJatuh[1] && y < zonaJatuh[3]);
+  };
+  // Skala total dari lebar skala yang terlihat, bukan sH saja, supaya tetap benar kalau desktop pembuka di-transform
+  // dari luar (sempat dikecilkan guliran, kecilkanPembuka(), sekarang dihapus). KOREKSI (2026-10-27): dulu dibagi sH.
+  // sk & lebar: desktop lain yang memakai rupa yang sama (desktop Drag and drop, seretSiklus()); bawaannya pembuka.
+  const titikDi = (el, fx = 0.5, fy = 0.5, sk = skala, lebar = Wv) => {
+    const a = sk.getBoundingClientRect(), r = el.getBoundingClientRect(), s = a.width / lebar;
+    return [(r.left - a.left + r.width * fx) / s, (r.top - a.top + r.height * fy) / s];
+  };
+  const kotakDi = (el, sk, lebar) => [...titikDi(el, 0, 0, sk, lebar), ...titikDi(el, 1, 1, sk, lebar)];
+  // lurus: tanpa lengkung acak, untuk gerakan yang harus terbaca satu arah (menyeret). letak & p: kursor desktop lain
+  // (seretSiklus()); bawaannya kursor pembuka.
+  function gerakKe([x, y], ms, lurus, letak = letakKursor, p = pos) {
+    const x0 = p.x, y0 = p.y, dx = x - x0, dy = y - y0, d = Math.hypot(dx, dy);
+    if (kurangi || d < 1) { letak(x, y); return Promise.resolve(); }
+    const lama = (ms || Math.min(1100, 420 + d * 0.7)) * TEMPO_KURSOR;
+    const geser = lurus ? 0 : (Math.random() < 0.5 ? -1 : 1) * d * (0.08 + Math.random() * 0.08);
+    const cx = (x0 + x) / 2 - (dy / d) * geser, cy = (y0 + y) / 2 + (dx / d) * geser;
+    return new Promise(selesai => {
+      const t0 = performance.now();
+      const langkah = now => {
+        const t = Math.min(1, (now - t0) / lama);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2, u = 1 - e;
+        letak(u * u * x0 + 2 * u * e * cx + e * e * x, u * u * y0 + 2 * u * e * cy + e * e * y);
+        if (t < 1) requestAnimationFrame(langkah); else selesai();
+      };
+      requestAnimationFrame(langkah);
+    });
+  }
+  const klik = async () => { kursorH.classList.add('klik'); await tidur(110); kursorH.classList.remove('klik'); };
+
+  // Keterangan langkah: kata-kata kalimat lama pergi bergiliran, lalu kata-kata kalimat baru masuk bergiliran (.kata).
+  // KOREKSI (user 2026-10-27): dulu satu kotak yang pudar keluar 200 ms lalu pudar masuk lewat .tampil.
+  let tandaKet = 0;
+  async function keterangan(teks) {
+    teks = teks || '';
+    if (keteranganEl.dataset.teks === teks) return;
+    const t = ++tandaKet;
+    keteranganEl.dataset.teks = teks;
+    const lama = [...keteranganEl.querySelectorAll('.kata')];
+    if (lama.length) {
+      lama.forEach((w, i) => { w.style.transitionDelay = `${i * 25}ms`; w.classList.add('pergi'); });
+      await tidur(300 + lama.length * 25);
+    }
+    if (t !== tandaKet) return; // kalimat yang lebih baru sudah menggantikannya
+    keteranganEl.innerHTML = teks.split(' ').filter(Boolean)
+      .map((w, i) => `<span class="kata" style="animation-delay:${i * 45}ms">${w}</span>`).join(' ');
+  }
+  // Tanda tombol: melebar masuk di samping keterangan, tombolnya ditekan bergantian, lalu dilepas dan tandanya pergi.
+  const lipat = $('#lipat');
+  let tandaKetuk = 0;
+  async function ketuk(tombol) {
+    const t = ++tandaKetuk;
+    ketukan.innerHTML = tombol.map(x => `<span class="kc">${x}</span>`).join('<span class="plus">+</span>');
+    lipat.classList.add('buka');
+    await tidur(380);
+    const kc = [...ketukan.querySelectorAll('.kc')];
+    // Nisan (user 2026-10-26): tombol Alt & Space di judul sesudah desktop ikut tertekan; judulnya dihapus.
+    for (let n = 0; n < kc.length; n++) { kc[n].classList.add('tekan'); await tidur(220); }
+    await tidur(200);
+    kc.forEach(e => e.classList.remove('tekan'));
+    setTimeout(() => { if (t === tandaKetuk) lipat.classList.remove('buka'); }, 1400);
+  }
+  const tampilkanBar = b => { barHero.sembunyi(!b); mockHero.classList.toggle('tersembunyi', !b); };
+  const tbApp = nama => skala.querySelector(`.tb-app[data-app="${nama}"]`);
+
+  const kontrolHTML = `<span class="kontrol"><span><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></span><span><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></span><span class="tutup"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span></span>`;
+  const sv = d => `<svg viewBox="0 0 16 16">${d}</svg>`;
+  // Baris Explorer: [ikon, nama, waktu diubah, jenis, ukuran], urut nama seperti Explorer (folder dulu). Tanggal
+  // memakai format negara pengunjung, sama dengan jam taskbar.
+  const tglEx = d => `${d.toLocaleDateString()} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  const BARIS_EX = [
+    [map16, 'Event photos', new Date(2026, 9, 20, 14, 12), 'File folder', ''],
+    [dok16('#d2552a'), 'Q3 Presentation.pptx', new Date(2026, 9, 25, 19, 2), 'Presentation', '2.4 MB'],
+    [dok16('#2f6fd6'), 'Q3 Summary.docx', new Date(2026, 9, 24, 11, 20), 'Document', '128 KB'],
+    [dok16('#1f8a4c'), 'Sales August.xlsx', new Date(2026, 8, 3, 10, 5), 'Worksheet', '51 KB'],
+    [dok16('#1f8a4c'), 'Sales July.xlsx', new Date(2026, 7, 2, 9, 30), 'Worksheet', '48 KB'],
+    [dok16('#1f8a4c'), 'Sales September.xlsx', new Date(2026, 9, 1, 16, 44), 'Worksheet', '53 KB'],
+  ];
+  const barisHTML = (b, kelas = '') => `<div class="ex-baris${kelas}"><span>${b[0]}${b[1]}</span><span class="ex-sek">${tglEx(b[2])}</span><span class="ex-sek">${b[3]}</span><span class="ex-sek">${b[4]}</span></div>`;
+  // Panel kiri Explorer & dialog Open (Documents terpilih).
+  const SISI_EX = [['Home', '#5aa2f0'], ['Gallery', '#3fb47d'], null, ['Desktop', '#4a90e2'], ['Downloads', '#38a169'], ['Documents', '#7c8db5', 1], ['Pictures', '#5b8def'], ['Music', '#e2668b'], ['Videos', '#8a6cf0']];
+  const sisiHTML = () => SISI_EX.map(s => s ? `<span${s[2] ? ' class="aktif"' : ''}><i style="background:${s[1]}"></i>${s[0]}</span>` : '<hr>').join('');
+  const kepalaEx = '<div class="ex-baris kepala"><span>Name</span><span>Date modified</span><span>Type</span><span>Size</span></div>';
+  const BARIS_DOK = [
+    [map16, 'Q3 Reports', new Date(2026, 9, 25, 19, 2), 'File folder', ''],
+    [map16, 'School', new Date(2026, 9, 22, 9, 0), 'File folder', ''],
+    [dok16('#1f8a4c'), 'Budget 2026.xlsx', new Date(2026, 9, 5, 13, 40), 'Worksheet', '36 KB'],
+    [dok16('#e5342b'), 'Class schedule.pdf', new Date(2026, 9, 12, 8, 30), 'PDF document', '184 KB'],
+    [dok16('#2f6fd6'), 'Resume.docx', new Date(2026, 8, 28, 21, 15), 'Document', '64 KB'],
+    [dok16('#8e8e93'), 'Notes.txt', new Date(2026, 9, 26, 7, 50), 'Text document', '2 KB'],
+  ];
+  const DIALOG = () => `
+      <div class="win-judul"><span class="nama">Open</span><span class="kontrol"><span class="tutup"><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span></span></div>
+      <div class="ex-alamat">${sv('<path d="M10 3 5 8l5 5"/>')}${sv('<path d="M6 3l5 5-5 5"/>')}${sv('<path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/>')}<span class="jalur">${map16.replace('viewBox', 'width="14" height="14" viewBox')}This PC › Documents</span><span class="cari">${sv('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>')}Search Documents</span></div>
+      <div class="ex-alat"><span>Organize</span><span class="sela"></span><span>New folder</span></div>
+      <div class="ex-badan"><div class="ex-sisi">${sisiHTML()}</div><div class="ex-daftar">${kepalaEx}${BARIS_DOK.map(b => barisHTML(b)).join('')}</div></div>
+      <div class="dlg-kaki">
+        <div class="dlg-nama"><span>File name:</span><span class="dlg-isian"><span class="ketik"></span></span><span class="dlg-jenis">All files (*.*)<span>⌄</span></span></div>
+        <div class="dlg-tombol"><span class="dlg-buka">Open</span><span>Cancel</span></div>
+      </div>`;
+  const EXPLORER = () => {
+    return `
+      <div class="win-judul"><span class="nama">${map16}Q3 Reports</span>${kontrolHTML}</div>
+      <div class="ex-alat"><span class="baru">${sv('<path d="M8 3v10M3 8h10"/>')}New</span><span class="sela"></span>${sv('<path d="M5 3l6 10M11 3 5 13"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="12.5" r="1.5"/>')}${sv('<rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3.5A1 1 0 0 1 4 2.5h6"/>')}${sv('<rect x="3" y="4" width="10" height="10" rx="1"/><path d="M6 2.5h4v2H6z"/>')}<span class="sela"></span>Sort<span class="sela"></span>View</div>
+      <div class="ex-alamat">${sv('<path d="M10 3 5 8l5 5"/>')}${sv('<path d="M6 3l5 5-5 5"/>')}${sv('<path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/>')}<span class="jalur">${map16.replace('viewBox', 'width="14" height="14" viewBox')}Documents › Q3 Reports</span><span class="cari">${sv('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>')}Search Q3 Reports</span></div>
+      <div class="ex-badan">
+        <div class="ex-sisi">${sisiHTML()}</div>
+        <div class="ex-daftar">
+          ${kepalaEx}
+          ${BARIS_EX.map(b => barisHTML(b)).join('')}
+        </div>
+      </div>
+      <div class="ex-status">${BARIS_EX.length} items</div>`;
+  };
+  // Campus Portal mahasiswa Bisnis & Manajemen yang sama dengan Class schedule.pdf (JADWAL di bawah): menu kiri, angka
+  // ringkas, kelas hari ini, tenggat, dan pengumuman (user 2026-10-26, "portal website yang mahasiswa itu bener bener
+  // lengkapin banget"). KOREKSI: dulu satu pita menu, salam, dan tiga kartu (kelas Databases, laporan Programming).
+  const PORTAL_MENU = [['Dashboard'], ['My courses'], ['Schedule'], ['Grades'], ['Assignments', '3'], ['Finance'], ['Library'], ['Messages', '2']];
+  const PORTAL_ANGKA = [['GPA', '3.72', 'out of 4.00'], ['Credits this term', '24', '8 courses'], ['Attendance', '96%', 'this semester'], ['Due this week', '3', 'assignments']];
+  const PORTAL_KELAS = [
+    ['8:00 AM', 'MGT201', 'Principles of Management', 'B-201', 'Dr. Hartono', 'In 25 min'],
+    ['10:00 AM', 'ACC203', 'Financial Accounting', 'B-305', 'Ms. Lestari', ''],
+  ];
+  const PORTAL_TENGGAT = [
+    ['Problem set 4', 'STA205 · Business Statistics', 'Thu, 11:59 PM', true],
+    ['Marketing plan draft', 'MKT210 · Marketing Management', 'Fri, 11:59 PM', false],
+    ['Case study: team conflict', 'MGT220 · Organizational Behavior', 'Mon, Nov 2', false],
+  ];
+  const PORTAL_UMUM = [
+    ['Finals start December 8', 'Exam rooms are posted under Schedule.'],
+    ['Career fair, November 12', 'Main Hall, 9 AM – 3 PM. Bring your CV.'],
+    ['Library open until 10 PM', 'Extended hours during the exam period.'],
+  ];
+  const BROWSER = () => `
+      <div class="br-tab"><span class="tab-b"><span class="fav">P</span><b>Campus Portal</b>${sv('<path d="M5 5l6 6M11 5l-6 6" stroke="#6e6e6e" stroke-width="1.3"/>').replace('<svg', '<svg width="12" height="12"')}</span><span class="baru-b">+</span>${kontrolHTML}</div>
+      <div class="br-alat">${sv('<path d="M10 3 5 8l5 5"/>')}${sv('<path d="M6 3l5 5-5 5"/>')}${sv('<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/>')}<span class="alamat">${sv('<rect x="4" y="7" width="8" height="6" rx="1"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"/>')}portal.campus.edu<i>/home</i></span><span class="orang">B</span></div>
+      <div class="br-hal pt">
+        <aside class="pt-sisi">
+          <div class="pt-merek"><span class="fav">P</span><b>Campus Portal</b></div>
+          ${PORTAL_MENU.map(([n, b], i) => `<span class="pt-menu${i ? '' : ' aktif'}"><i></i>${n}${b ? `<em>${b}</em>` : ''}</span>`).join('')}
+        </aside>
+        <div class="pt-utama">
+          <div class="pt-atas"><span>Fall semester 2026/2027 · Week 9</span><span class="pt-cari">${sv('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>')}Search courses, people…</span><span class="pt-orang">B</span></div>
+          <div class="pt-salam"><div><h3>Good morning, Brown</h3><p>Business &amp; Management · Semester 3 · ID 2304117</p></div><span class="pt-tombol">View full schedule</span></div>
+          <div class="pt-angka">${PORTAL_ANGKA.map(([l, a, k]) => `<div><small>${l}</small><b>${a}</b><span>${k}</span></div>`).join('')}</div>
+          <div class="pt-dua">
+            <div class="pt-kartu"><h4>Today's classes<span>Monday</span></h4>
+              ${PORTAL_KELAS.map(([j, kode, mk, ruang, dosen, tanda]) => `<div class="pt-kelas"><span class="pt-jam">${j}</span><div><b>${mk}</b><small>${kode} · ${ruang} · ${dosen}</small></div>${tanda ? `<em>${tanda}</em>` : ''}</div>`).join('')}
+            </div>
+            <div class="pt-kartu"><h4>Upcoming deadlines<span>3 due this week</span></h4>
+              ${PORTAL_TENGGAT.map(([t, mk, kapan, mendesak]) => `<div class="pt-tenggat"><i${mendesak ? ' class="mendesak"' : ''}></i><div><b>${t}</b><small>${mk}</small></div><span>${kapan}</span></div>`).join('')}
+            </div>
+          </div>
+          <div class="pt-kartu pt-umum"><h4>Announcements</h4>
+            ${PORTAL_UMUM.map(([t, ket]) => `<div><b>${t}</b><small>${ket}</small></div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  // Class schedule.pdf (kotak 7 sesudah ditambahkan): jadwal semester 3 Bisnis & Manajemen (user 2026-10-26, "anggap aja
+  // class schedule anak bisnis dan manajemen"), dibuka penampil PDF browser bawaan seperti di Windows.
+  const JADWAL = [
+    ['Monday', '8:00 – 9:40 AM', 'MGT201', 'Principles of Management', 'B-201', 'Dr. Hartono'],
+    ['', '10:00 – 11:40 AM', 'ACC203', 'Financial Accounting', 'B-305', 'Ms. Lestari'],
+    ['Tuesday', '8:00 – 9:40 AM', 'MKT210', 'Marketing Management', 'C-102', 'Dr. Wijaya'],
+    ['', '1:00 – 2:40 PM', 'STA205', 'Business Statistics', 'Lab 2', 'Mr. Pratama'],
+    ['Wednesday', '10:00 – 11:40 AM', 'MGT220', 'Organizational Behavior', 'B-201', 'Dr. Sari'],
+    ['Thursday', '8:00 – 9:40 AM', 'ECO202', 'Microeconomics', 'A-110', 'Dr. Gunawan'],
+    ['', '1:00 – 2:40 PM', 'LAW215', 'Business Law', 'C-204', 'Mr. Halim'],
+    ['Friday', '9:00 – 10:40 AM', 'MGT230', 'Human Resource Management', 'B-108', 'Ms. Anggraini'],
+  ];
+  const PDF = () => `
+      <div class="br-tab"><span class="tab-b">${dok16('#e5342b').replace('<svg', '<svg width="16" height="16"')}<b>Class schedule.pdf</b>${sv('<path d="M5 5l6 6M11 5l-6 6" stroke="#6e6e6e" stroke-width="1.3"/>').replace('<svg', '<svg width="12" height="12"')}</span><span class="baru-b">+</span>${kontrolHTML}</div>
+      <div class="br-alat">${sv('<path d="M10 3 5 8l5 5"/>')}${sv('<path d="M6 3l5 5-5 5"/>')}${sv('<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/>')}<span class="alamat">${sv('<path d="M3.5 1.5h6l3 3v10h-9z"/>')}file:///C:/Users/Brown/Documents/<i>Class%20schedule.pdf</i></span><span class="orang">B</span></div>
+      <div class="pdf-alat"><span class="hal">1</span><span>of 1</span><span class="sela"></span><span>−</span><span>100%</span><span>+</span><span class="sela"></span><span>Draw</span><span>Highlight</span></div>
+      <div class="pdf-isi"><div class="pdf-hal">
+        <div class="pdf-kepala">
+          <div><small>FACULTY OF ECONOMICS AND BUSINESS</small><b>Class Schedule</b><span>Business &amp; Management · Semester 3 · Fall 2026/2027</span></div>
+          <div class="pdf-mhs"><span>Student</span><b>Brown</b><span>ID 2304117</span></div>
+        </div>
+        <table class="pdf-tabel"><thead><tr><th>Day</th><th>Time</th><th>Code</th><th>Course</th><th>Room</th><th>Lecturer</th></tr></thead><tbody>
+          ${JADWAL.map(r => `<tr${r[0] ? ' class="awal"' : ''}>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}
+        </tbody></table>
+        <p class="pdf-kaki"><span>8 courses · 24 credits</span><span>Printed October 12, 2026</span></p>
+      </div></div>`;
+  // Explorer tetap terbuka di belakangnya; tombol taskbar-nya kehilangan fokus selama PDF di depan.
+  function bukaPdf() {
+    letakJendela('pdf', pdfHero);
+    pdfHero.innerHTML = PDF();
+    pdfHero.getBoundingClientRect();
+    pdfHero.classList.add('buka');
+    tbApp('explorer').classList.remove('fokus');
+    tbApp('browser').classList.add('jalan', 'fokus');
+  }
+  function tutupPdf() {
+    pdfHero.classList.remove('buka');
+    tbApp('browser').classList.remove('jalan', 'fokus');
+    tbApp('explorer').classList.add('fokus');
+  }
+  function bukaJendela(jenis) {
+    letakJendela(jenis);
+    winHero.innerHTML = jenis === 'explorer' ? EXPLORER() : BROWSER();
+    winHero.getBoundingClientRect();
+    winHero.classList.add('buka');
+    tbApp(jenis).classList.add('jalan', 'fokus');
+  }
+  function tutupJendela(jenis) {
+    winHero.classList.remove('buka');
+    tbApp(jenis).classList.remove('jalan', 'fokus');
+  }
+  // Klik kotak: kotak tertekan, jadi terpilih, lalu dibuka dan bar menutup (mulaiTutup()).
+  async function klikKotak(n, k) {
+    const kotak = barHero.kotak(n);
+    await gerakKe(titikDi(kotak, 0.52, 0.48));
+    await tunggu(260, k);
+    kotak.classList.add('tekan'); await klik(); kotak.classList.remove('tekan');
+    barHero.pilih(n);
+    await tidur(220);
+    tampilkanBar(false);
+    await tidur(160);
+  }
+  async function klikTutup(k, jendela = winHero) {
+    const x = jendela.querySelector('.tutup');
+    await gerakKe(titikDi(x));
+    x.classList.add('sorot');
+    await tunggu(320, k);
+    await klik();
+    x.classList.remove('sorot');
+  }
+  // Tarik item keluar dari bar ke Explorer (berkas.cpp seretKeluar()): tekan kotak lalu satu gerakan lurus ke daftar
+  // file. Di awal gerakan (ambang seret) bar memudar ke 30% dan gambar seret ikut kursor; "+ Copy to Q3 Reports"
+  // muncul saat kursor masuk ke daftar di bawah bar. Lepas = salinannya muncul di daftar, kotaknya tetap berisi.
+  // KOREKSI: dulu "geser melewati ambang" lalu dua gerakan berbelok ke daftar; user 2026-10-26: "jangan ada gerakan
+  // tambahan ... jadi kaya satu gerakan gitu, gausah zig zag".
+  async function seretKeluar(nKotak, baris, k) {
+    const kotak = barHero.kotak(nKotak);
+    await gerakKe(titikDi(kotak, 0.5, 0.42));
+    await tunggu(350, k);
+    kursorH.classList.add('klik'); kotak.classList.add('tekan');
+    barHero.pilih(nKotak);
+    await tunggu(250, k);
+    // Gambar seret = ikon kotak itu sendiri, tanpa latar, nama, dan nomor (barwidget.cpp gambarSeret()), dipegang di
+    // titik yang ditekan: ujung kursor tetap di titik itu pada ikonnya (berkas.cpp setHotSpot). "+ Copy to" milik
+    // Windows di kanan bawah kursor. KOREKSI (user 2026-10-26, "si icon folder atau filenya ada diujung kiri atas cursor
+    // kaya beneran"): dulu baris ikon kecil + nama, 12 x 20 px di kanan bawah kursor.
+    const ikonEl = kotak.querySelector('.ikon'), [il, it, ir, ib] = kotakDi(ikonEl);
+    hantuH.innerHTML = `<span class="ikon-seret" style="left:${il - pos.x}px;top:${it - pos.y}px;width:${ir - il}px;height:${ib - it}px">${ikonEl.innerHTML}</span><span class="jatuh">${sv('<path d="M8 3v10M3 8h10" stroke="#0067c0" stroke-width="1.6" stroke-linecap="round"/>').replace('<svg', '<svg width="12" height="12"')}Copy to <b>Q3 Reports</b></span>`;
+    hantuH.classList.remove('di-atas');
+    const d = kotakDi(winHero.querySelector('.ex-daftar')), bawahBar = kotakDi(barHero.el.querySelector('.bar'))[3];
+    // Tempat lepas = daftar di bawah bar; di layar yang terlalu pendek untuk itu, seluruh daftar.
+    const atas = d[3] - bawahBar > 60 ? bawahBar : d[1];
+    zonaJatuh = [d[0], atas, d[2], d[3]];
+    menyeret = true;
+    const jalan = gerakKe([d[0] + (d[2] - d[0]) * 0.55, atas + (d[3] - atas) * 0.6], 1100, true);
+    await tidur(120);
+    kotak.classList.remove('tekan');
+    hantuH.classList.add('tampil');
+    mockHero.classList.add('tembus');
+    await jalan;
+    await tunggu(500, k);
+    // Lepas.
+    kursorH.classList.remove('klik'); menyeret = false; zonaJatuh = null;
+    hantuH.classList.remove('tampil', 'di-atas');
+    mockHero.classList.remove('tembus');
+    const baru = document.createElement('div');
+    baru.innerHTML = barisHTML(baris, ' baru pilih');
+    const semua = [...winHero.querySelectorAll('.ex-baris:not(.kepala)')];
+    semua.forEach(b => b.classList.remove('pilih'));
+    // Seperti Explorer sungguhan: yang baru disalin ke folder muncul di ujung bawah daftar sampai diurutkan ulang (F5),
+    // jadi terlihat di bawah bar. KOREKSI (user 2026-10-26, "hasil perubahannya ga keliatan"): dulu disisipkan di urutan
+    // namanya (sisipDi 1 dan 0), tepat di baris yang tertutup bar.
+    semua[semua.length - 1].after(baru.firstElementChild);
+    winHero.querySelector('.ex-status').textContent = `${semua.length + 1} items`;
+    await tunggu(900, k);
+  }
+  // Aksen terang profil p: cincin & cahaya bar, dan latar berwarna seluruh Sevdeck pembuka (.berwarna di #skala).
+  function aksenHero(p) {
+    barHero.aksen(PROFIL[p].terang);
+    skala.style.setProperty('--tint', PROFIL[p].terang);
+  }
+  aksenHero(0);
+  function pindahProfil(p) {
+    deretanHero.ke(p);
+    aksenHero(p);
+    barHero.ganti(p === 0 ? isiKerjaH : PROFIL[p].isi);
+  }
+
+  // ── Panel tambah di pembuka ──
+  function jenisH(k) {
+    panelHero.style.setProperty('--k', k);
+    relH.forEach((r, n) => r.classList.toggle('aktif', n === k));
+    paneH.forEach((p, n) => p.classList.toggle('aktif', n === k));
+    petunjukHero.innerHTML = PETUNJUK[k];
+  }
+  // Panel terbuka: bar & panel digeser supaya muat di antara navigasi dan taskbar; di layar pendek diperkecil sekalian.
+  function aturPanel(buka) {
+    if (!buka) { mockHero.classList.remove('mode-panel'); mockHero.style.transform = ''; return; }
+    const mt = pusatBar - 130, T = 459 + 140 + 47; // puncak panel (-399) sampai bawah pil petunjuk (247)
+    const atas = ATAS_KERJA, A = kerjaH - 12 - atas;
+    const s = Math.min(1, A / T);
+    const blokAtas = atas + (A - T * s) / 2;
+    mockHero.style.transformOrigin = '442px -399px';
+    mockHero.style.transform = `translateY(${blokAtas - (mt - 399)}px) scale(${s})`;
+    mockHero.classList.add('mode-panel');
+  }
+  async function klikRel(n, teks, k) {
+    await gerakKe(titikDi(relH[n], 0.5, 0.3));
+    await tunggu(220, k);
+    await klik();
+    jenisH(n);
+    keterangan(teks);
+    await tunggu(1200, k); // KOREKSI (user 2026-10-26, "aga dicepetin tapi jangan cepet banget"): dulu 1800
+  }
+  function bukaDialog() {
+    const dw = Math.min(760, Wv - 160), dh = Math.min(480, kerjaH - 100);
+    Object.assign(dialogHero.style, { width: `${dw}px`, height: `${dh}px`, left: `${(Wv - dw) / 2}px`, top: `${Math.max(ATAS_KERJA, (kerjaH - dh) / 2)}px` });
+    dialogHero.innerHTML = DIALOG();
+    dialogHero.getBoundingClientRect();
+    dialogHero.classList.add('buka');
+  }
+  // Klik kotak kosong 7, kenali keempat jenis isi, lalu tambahkan jadwal kuliah lewat Browse in Explorer.
+  async function tambahFile(k) {
+    keterangan('Click an empty box to add something');
+    const kotak = barHero.kotak(6);
+    await gerakKe(titikDi(kotak, 0.5, 0.45));
+    await tunggu(400, k);
+    kotak.classList.add('tekan'); await klik(); kotak.classList.remove('tekan');
+    barHero.pasang(6, { j: 'isi' }, false);
+    barHero.pilih(6);
+    paneFileH.classList.remove('konfirm'); $('#jalurH').textContent = '';
+    jenisH(0);
+    aturPanel(true);
+    await tunggu(900, k);
+    keterangan('Apps you open every day');
+    await tunggu(1200, k); // sama dengan klikRel(); dulu 1800
+    await klikRel(1, 'Files and folders', k);
+    await klikRel(2, 'Websites you visit often', k);
+    await klikRel(3, 'Text you paste a lot, copied in one click', k);
+    await klikRel(1, 'Let’s add a class schedule', k);
+    const telusuri = $('#telusuriH');
+    await gerakKe(titikDi(telusuri, 0.4, 0.5));
+    await tunggu(300, k);
+    telusuri.classList.add('tekan'); await klik(); telusuri.classList.remove('tekan');
+    bukaDialog();
+    await tunggu(900, k);
+    const baris = [...dialogHero.querySelectorAll('.ex-baris:not(.kepala)')][3];
+    await gerakKe(titikDi(baris.firstElementChild, 0.4, 0.5));
+    baris.classList.add('sorot');
+    await tunggu(400, k);
+    await klik();
+    baris.classList.add('pilih');
+    dialogHero.querySelector('.dlg-isian .ketik').textContent = 'Class schedule.pdf';
+    await tunggu(700, k);
+    const tBuka = dialogHero.querySelector('.dlg-buka');
+    await gerakKe(titikDi(tBuka, 0.45, 0.5));
+    await tunggu(300, k);
+    tBuka.classList.add('tekan'); await klik();
+    dialogHero.classList.remove('buka');
+    $('#jalurH').textContent = 'C:\\Users\\Brown\\Documents\\Class schedule.pdf';
+    paneFileH.classList.add('konfirm');
+    await tunggu(1200, k);
+    const pasang = $('#pasangH');
+    await gerakKe(titikDi(pasang, 0.45, 0.5));
+    await tunggu(350, k);
+    pasang.classList.add('tekan'); await klik(); pasang.classList.remove('tekan');
+    aturPanel(false);
+    await tidur(250);
+    barHero.pasang(6, { j: 'file', n: 'Class schedule.pdf', ext: 'PDF', warna: '#e5342b' });
+    isiKerjaH = barHero.daftar.slice();
+    keterangan('Added to box 7');
+    await tunggu(1600, k);
+  }
+
+  // Nisan (user 2026-10-27, "jangan terbang kaya sekarang aneh banget"): terbangkanMerek(), FLIP logo kalimat pembuka ke
+  // #heroMerek di kiri atas.
+  async function hero() {
+    const k = 'hero';
+    // Kartu app panel tambah pembuka (daftarnya sama dengan bagian Anything).
+    panelHero.querySelector('.kb-semua').innerHTML = APP_SEMUA.map(kartu).join('');
+    jenisH(0);
+    letakKursor(Wv * 0.64, kerjaH * 0.78);
+    const situsAtas = $('#situsAtas'); // KOREKSI (eksperimen 3, baris atas): dulu #heroMerek, logo saja
+    if (kurangi) { tampilkanBar(true); kursorH.style.display = 'none'; situsAtas.classList.add('tetap'); return; }
+    // Kalimat pembuka sekali saja, bukan tiap putaran / Start again; kursor menunggu tersembunyi sampai kalimatnya pergi.
+    const intro = $('#heroIntro');
+    kursorH.style.opacity = '0';
+    await tunggu(300, k);
+    intro.classList.add('tampil');
+    await tunggu(1200, k);
+    intro.classList.add('bermerek'); // logo + nama membuka di kanan, kalimat bergeser ke kiri
+    await tunggu(1800, k);
+    // Kalimat & logonya pudar bersama, lalu sesudah hilang logo + nama muncul pelan di kiri atas dan menetap selama
+    // peragaan (user 2026-10-27, "hilang barengan sama si kalimat awal, terus pas udah hilang muncul gitu di kiri atas").
+    // KOREKSI: sempat terbang (FLIP, terbangkanMerek()) dari logo kalimat ke kiri atas; user: "jangan terbang kaya
+    // sekarang aneh banget".
+    intro.classList.add('pergi');
+    await tunggu(800, k);
+    intro.remove();
+    situsAtas.classList.add('tetap'); // logo naik pelan dari bawah
+    kursorH.style.opacity = '';
+    for (;;) {
+      // Mulai bersih: profil Work (kotak 7 kosong lagi), bar tertutup, kursor diam di desktop.
+      isiKerjaH = KERJA_HERO.slice();
+      deretanHero.ke(0); aksenHero(0); barHero.ganti(isiKerjaH); barHero.pilih(0);
+      await tunggu(600, k);
+      await gerakKe([Wv * 0.58, kerjaH * 0.74], 600);
+      await tunggu(300, k);
+
+      // Satu cerita utuh seperti orang memakainya (user 2026-10-28, "itu jadi satu kesatuan semua gitu jadi kaya simulasi
+      // kalau user pake, tapi tetep penjelasannya jelasin fitur, terus kaya tutup buka nya gausah dibahas, mention aja
+      // bisa dibuka dari system tray sama shortcut"): bar dipanggil Alt + Space tiap kali dibutuhkan tanpa keterangan
+      // sendiri, keterangannya cuma fitur. Pagi hari kerja: buka folder laporan, tarik file & folder ke sana, tambah
+      // jadwal kuliah ke kotak kosong lalu buka, pindah ke profil School dengan Tab, buka Campus Portal.
+      // KOREKSI: dulu tujuh langkah yang membahas buka-tutup sendiri: "Open Sevdeck from the taskbar" (klik ikon
+      // tersemat, lalu klik di luar), "The shortcut works from anywhere", "You can also open it from the system tray"
+      // (^, ikon Sevdeck, menu, Open Sevdeck), "Switch profiles with Tab or a click" (Tab ke Weekend, klik ke Work),
+      // dan "Click outside the bar to close it"; Campus Portal sempat dibuka lewat klik tab School.
+      // 1. Cara membukanya disebut sekali, sambil dipakai.
+      keterangan('Open it with Alt + Space or from the system tray');
+      await ketuk(['Alt', 'Space']);
+      tampilkanBar(true);
+      await tunggu(1300, k);
+      keterangan('Open anything in one click');
+      await klikKotak(1, k);
+      bukaJendela('explorer');
+      await tunggu(900, k);
+
+      // 2. Bar dipanggil lagi di atas Explorer; file lalu folder ditarik keluar dari bar ke Explorer.
+      await gerakKe(titikDi(winHero.querySelectorAll('.ex-baris')[3], 0.3, 0.5));
+      await tunggu(400, k);
+      await ketuk(['Alt', 'Space']);
+      barHero.pilih(0);
+      tampilkanBar(true);
+      keterangan('Drag a file out of the bar into any folder');
+      await tunggu(900, k);
+      await seretKeluar(4, [dok16('#e5342b'), 'Monday meeting.pdf', new Date(), 'PDF document', '312 KB'], k);
+      keterangan('Folders work the same way');
+      await tunggu(500, k);
+      await seretKeluar(5, [map16, 'Design assets', new Date(), 'File folder', ''], k);
+
+      // 3. Tambah item ke kotak kosong, lalu langsung dibuka dari kotak 7 (user 2026-10-26, "ada sesi juga pas yang class
+      // schedule"). Membuka kotak menutup bar; sesudah PDF ditutup, Explorer di belakangnya ikut ditutup, tanpa
+      // keterangan. Nisan (user 2026-10-26, "gausah kasih tahu kalau app bisa ditutup pakai esc"): langkah "Close the bar
+      // with Esc".
+      await tambahFile(k);
+      keterangan('Your class schedule, one click away');
+      await klikKotak(6, k);
+      bukaPdf();
+      await tunggu(2800, k);
+      keterangan('');
+      await klikTutup(k, pdfHero);
+      tutupPdf();
+      await tunggu(900, k); // salinan file & folder di Explorer terlihat jelas
+      await klikTutup(k);
+      tutupJendela('explorer');
+      await tunggu(600, k);
+
+      // 4. Pindah ke profil School dengan Tab, lalu buka situsnya (user 2026-10-26, "yang buka website itu jangan
+      // terakhir, tapi abis class schedule").
+      await ketuk(['Alt', 'Space']);
+      barHero.pilih(0);
+      tampilkanBar(true);
+      await tunggu(700, k);
+      keterangan('Switch profiles with Tab or a click');
+      await ketuk(['Tab']);
+      pindahProfil(1);
+      await tunggu(1500, k);
+      keterangan('Your sites open from the bar too');
+      await klikKotak(2, k);
+      bukaJendela('browser');
+      // nisan: kursor dulu menyorot dua kartu portal; user 2026-10-26: "gausah di klik jadi pas udah kebuka langsung
+      // tutup aja". Gaya .br-kartu > div.sorot ikut dihapus.
+      await tunggu(2600, k); // portalnya lebih lengkap, jadi dibiarkan terbaca lebih lama (dulu 1100)
+      keterangan('');
+      await klikTutup(k);
+      tutupJendela('browser');
+      await gerakKe([Wv * 0.66, kerjaH * 0.8], 900);
+      await tunggu(900, k);
+      // Selesai: halaman putih menutup desktop dan menunggu Start again. KOREKSI (user 2026-10-26): dulu langsung berulang
+      // sesudah "await tunggu(1800, k);".
+      await akhirHero();
+    }
+  }
+  const heroAkhir = $('#heroAkhir'), ulangHero = $('#ulangHero');
+  function akhirHero() {
+    heroAkhir.classList.add('tampil');
+    return new Promise(selesai => ulangHero.addEventListener('click', async () => {
+      heroAkhir.classList.remove('tampil');
+      await tidur(kurangi ? 0 : 500); // putihnya pergi dulu, baru peragaan mulai lagi
+      selesai();
+    }, { once: true }));
+  }
+
+  // ── Drag and drop: peragaan tarikan dari bar ke Explorer di desktop selayar (#seret) ──
+  // Tata letak & gerak sama dengan pembuka (gerakKe(), seretKeluar()), tanpa taskbar, keterangan, dan tanda tombol:
+  // Explorer Q3 Reports selalu terbuka, bar di atasnya, PDF lalu folder ditarik ke daftar file, salinannya muncul, lalu
+  // daftar kembali seperti semula dan peragaan berulang. Wadahnya punya data-loop = k, jadi cuma jalan selagi terlihat.
+  //   ukur(W, H) -> skala tampil desktop logis; tata(WS, HS) -> { jendela: [kiri, atas, lebar, tinggi], barAtas, mulai: [x, y] }.
+  function pasangSeret({ wadah, k, cahaya, ukur, tata }) {
+    const skalaS = wadah.querySelector('.skala'), mockS = wadah.querySelector('.seret-mock'), exS = wadah.querySelector('.win');
+    const kursorS = wadah.querySelector('.kursor-h'), hantuS = wadah.querySelector('.hantu-h');
+    const barS = buatBar(mockS.querySelector('.bar-seret'), { items: KERJA_HERO, pilih: 0, cahaya, aksen: PROFIL[0].terang });
+    skalaS.style.setProperty('--tint', PROFIL[0].terang);
+    let WS = 0, HS = 0, letak = null;
+    function tataUlang() {
+      const W = wadah.clientWidth, H = wadah.clientHeight, s = ukur(W, H);
+      WS = W / s; HS = H / s;
+      skalaS.style.width = `${WS}px`; skalaS.style.height = `${HS}px`; skalaS.style.transform = `scale(${s})`;
+      letak = tata(WS, HS);
+      const [l, t, w, h] = letak.jendela;
+      Object.assign(exS.style, { left: `${l}px`, top: `${t}px`, width: `${w}px`, height: `${h}px` });
+      mockS.style.left = `${(WS - 884) / 2}px`;
+      mockS.style.top = `${letak.barAtas}px`;
+    }
+    tataUlang();
+    new ResizeObserver(tataUlang).observe(wadah);
+    const posS = { x: 0, y: 0 };
+    let zonaS = null; // seperti zonaJatuh pembuka; null = tidak sedang menyeret
+    const letakS = (x, y) => {
+      posS.x = x; posS.y = y;
+      kursorS.style.transform = `translate(${x}px, ${y}px)`;
+      if (!zonaS) return;
+      hantuS.style.transform = `translate(${x}px, ${y}px)`;
+      hantuS.classList.toggle('di-atas', x > zonaS[0] && x < zonaS[2] && y > zonaS[1] && y < zonaS[3]);
+    };
+    const gerakS = (titik, ms, lurus) => gerakKe(titik, ms, lurus, letakS, posS);
+    // Sama dengan seretKeluar() pembuka: tekan kotak, satu gerakan lurus ke daftar, bar memudar ke 30% selagi gambar
+    // seret ikut kursor, "+ Copy to Q3 Reports" di atas daftar, lepas = salinan di ujung bawah daftar.
+    async function seretDari(nKotak, baris) {
+      const kotak = barS.kotak(nKotak);
+      await gerakS(titikDi(kotak, 0.5, 0.42, skalaS, WS));
+      await tunggu(350, k);
+      kursorS.classList.add('klik'); kotak.classList.add('tekan');
+      barS.pilih(nKotak);
+      await tunggu(250, k);
+      const ikonEl = kotak.querySelector('.ikon'), [il, it, ir, ib] = kotakDi(ikonEl, skalaS, WS);
+      hantuS.innerHTML = `<span class="ikon-seret" style="left:${il - posS.x}px;top:${it - posS.y}px;width:${ir - il}px;height:${ib - it}px">${ikonEl.innerHTML}</span><span class="jatuh">${sv('<path d="M8 3v10M3 8h10" stroke="#0067c0" stroke-width="1.6" stroke-linecap="round"/>').replace('<svg', '<svg width="12" height="12"')}Copy to <b>Q3 Reports</b></span>`;
+      hantuS.classList.remove('di-atas');
+      const d = kotakDi(exS.querySelector('.ex-daftar'), skalaS, WS), bawahBar = kotakDi(barS.el.querySelector('.bar'), skalaS, WS)[3];
+      const atas = d[3] - bawahBar > 60 ? bawahBar : d[1];
+      zonaS = [d[0], atas, d[2], d[3]];
+      letakS(posS.x, posS.y); // gambar seret mulai tepat di kursor
+      const jalan = gerakS([d[0] + (d[2] - d[0]) * 0.55, atas + (d[3] - atas) * 0.6], 1100, true);
+      await tidur(120);
+      kotak.classList.remove('tekan');
+      hantuS.classList.add('tampil');
+      mockS.classList.add('tembus');
+      await jalan;
+      await tunggu(500, k);
+      kursorS.classList.remove('klik'); zonaS = null;
+      hantuS.classList.remove('tampil', 'di-atas');
+      mockS.classList.remove('tembus');
+      const baru = document.createElement('div');
+      baru.innerHTML = barisHTML(baris, ' baru pilih');
+      const semua = [...exS.querySelectorAll('.ex-baris:not(.kepala)')];
+      semua.forEach(b => b.classList.remove('pilih'));
+      semua[semua.length - 1].after(baru.firstElementChild);
+      exS.querySelector('.ex-status').textContent = `${semua.length + 1} items`;
+      await tunggu(900, k);
+    }
+    return async function siklus() {
+      exS.innerHTML = EXPLORER();
+      exS.classList.add('buka');
+      letakS(...letak.mulai);
+      if (kurangi) return;
+      for (;;) {
+        await tunggu(1200, k);
+        await seretDari(4, [dok16('#e5342b'), 'Monday meeting.pdf', new Date(), 'PDF document', '312 KB']);
+        await tunggu(400, k);
+        await seretDari(5, [map16, 'Design assets', new Date(), 'File folder', '']);
+        await tunggu(2200, k);
+        // Mulai lagi: daftar tanpa salinan tadi, kotak 1 terpilih, kursor kembali ke tempat awal.
+        exS.innerHTML = EXPLORER();
+        barS.pilih(0);
+        await gerakS(letak.mulai, 700);
+      }
+    };
+  }
+  // Desktop selayar: skala & Explorer seperti pembuka (letakJendela('explorer')); bar di 40% tinggi, lebih tinggi dari
+  // pembuka, supaya daftar file di bawahnya cukup lega untuk tempat lepas.
+  const seretSiklus = pasangSeret({
+    wadah: $('#deskSeret'), k: 'seret', cahaya: true,
+    ukur: W => Math.min(1, W / 940),
+    tata: (WS, HS) => ({
+      jendela: [SELA_JENDELA, ATAS_KERJA, WS - 2 * SELA_JENDELA, HS - ATAS_KERJA - SELA_JENDELA],
+      barAtas: Math.max(ATAS_KERJA + 60, HS * 0.4 - 70),
+      mulai: [WS * 0.62, HS * 0.82],
+    }),
+  });
+  // Nisan (user 2026-10-27, eksperimen 3, "yang bagian jenis jenis file yang bisa ditambah hapus aja"): desktop jenis
+  // item (jenisSiklus(), JENIS_ISI, KOSONG7, barJenis): tujuh kotak kosong terisi satu per satu dengan app, file,
+  // folder, situs, teks, dan jenisnya tertulis di bawah bar, lalu "All in one bar" dan kosong lagi.
+  // Desktop selayar berisi bar saja (Profiles & profil otomatis): skala seperti pembuka, mock (bar + pil nama, ditambah
+  // deretan profil kalau ada) sedikit di atas tengah, tulisan besar 28 di bawahnya. Dipasang sesudah bar & deretannya
+  // dibuat, karena tinggi mock diukur dari isinya. tulis(): tulisan lama pudar turun, yang baru masuk.
+  function pasangDesktopBar(desk, tint) {
+    const skala = desk.querySelector('.skala'), mock = desk.querySelector('.seret-mock'), label = desk.querySelector('.jenis-label');
+    skala.style.setProperty('--tint', tint);
+    function tata() {
+      const W = desk.clientWidth, H = desk.clientHeight, s = Math.min(1, W / 940), WL = W / s, HL = H / s;
+      skala.style.width = `${WL}px`; skala.style.height = `${HL}px`; skala.style.transform = `scale(${s})`;
+      const atas = HL * 0.45 - mock.offsetHeight / 2;
+      mock.style.left = `${(WL - 884) / 2}px`;
+      mock.style.top = `${atas}px`;
+      label.style.top = `${atas + mock.offsetHeight + 28}px`;
+    }
+    tata();
+    new ResizeObserver(tata).observe(desk);
+    return {
+      skala,
+      async tulis(teks) {
+        label.classList.add('pergi');
+        await tidur(250);
+        label.textContent = teks;
+        label.classList.remove('pergi');
+      },
+    };
+  }
+
+  // ── Profiles: desktop selayar, deretan profil di atas bar berganti Work, School, Weekend ──
+  // (user 2026-10-27, eksperimen 3, "lakuin hal yang sama buat fitur profiles"): tiap ganti, pil deretan meluncur ke
+  // tab profilnya, isi bar berganti (ganti()), warna cincin, cahaya, dan latar Sevdeck ikut warna profil (seperti
+  // pindahProfil() pembuka), dan tulisan di bawah bar menyebut bagian harinya.
+  const deskProfil = $('#deskProfil');
+  // barProfilDesk, bukan barProfil: nama itu sudah dipakai peragaan Profiles di bagian fitur (#barProfil), dan
+  // deklarasi ganda sempat menggagalkan seluruh skrip (kalimat pembuka tidak muncul, kursor diam).
+  const barProfilDesk = buatBar(deskProfil.querySelector('.bar-profil'), { items: PROFIL[0].isi, pilih: 0, cahaya: true, aksen: PROFIL[0].terang });
+  const deretanProfil = buatDeretan(deskProfil.querySelector('.deretan-profil'));
+  const dProfil = pasangDesktopBar(deskProfil, PROFIL[0].terang);
+  const KATA_PROFIL = ['Your work day', 'Your classes', 'Your weekend']; // = urutan PROFIL
+  function profilKe(p) {
+    deretanProfil.ke(p);
+    barProfilDesk.aksen(PROFIL[p].terang);
+    dProfil.skala.style.setProperty('--tint', PROFIL[p].terang);
+    dProfil.tulis(KATA_PROFIL[p]);
+    return barProfilDesk.ganti(PROFIL[p].isi);
+  }
+  async function profilDeskSiklus() {
+    const k = 'profilDesk';
+    profilKe(0);
+    if (kurangi) return;
+    for (let p = 0; ; p = (p + 1) % PROFIL.length) {
+      await tunggu(2400, k);
+      await profilKe((p + 1) % PROFIL.length);
+    }
+  }
+
+  // ── Profil otomatis: desktop selayar, profil yang kotaknya terisi sendiri dari folder ──
+  // (user 2026-10-27, eksperimen 3, "fitur kaya profil dengan item yang keisi otomatis dari folder yang dipilih gitu,
+  // buat contohnya utamakan kaya folder downloads gitu terus setelah itu folder screenshot"): bar otomatis app
+  // (barotomatis.cpp, otomatis.h): tujuh kotak = tujuh file terbaru di folder sumbernya, dan file baru yang masuk ke
+  // folder meluncur ke kotak 1 dengan letupan sementara yang lain bergeser ke kanan (yang ke-7 keluar). Di sini tab
+  // Downloads lalu Screenshots, masing-masing kedatangan file baru.
+  // fileOto, bukan "berkas": berkas() sudah dipakai untuk menggambar ikon file.
+  const fileOto = (n, ext, warna) => ({ j: 'file', n, ext, warna });
+  const UNDUHAN = [
+    fileOto('Setup_Figma.exe', 'EXE', '#6e6e73'), fileOto('Lecture 9 slides.pdf', 'PDF', '#e5342b'),
+    fileOto('Trip photos.zip', 'ZIP', '#a07a2c'), fileOto('Budget 2026.xlsx', 'XLSX', '#1f8a4c'),
+    fileOto('Cover letter.docx', 'DOCX', '#2f6fd6'), fileOto('Poster.png', 'PNG', '#8a6cf0'), fileOto('Lab report.pdf', 'PDF', '#e5342b'),
+  ];
+  const UNDUHAN_BARU = [fileOto('Invoice October.pdf', 'PDF', '#e5342b'), fileOto('Team photo.jpg', 'JPG', '#8a6cf0')];
+  // Nama tangkapan Win + PrtScn; terbaru di kotak 1.
+  const TANGKAPAN = [14, 13, 12, 11, 10, 9, 8].map(n => fileOto(`Screenshot (${n}).png`, 'PNG', '#8a6cf0'));
+  const TANGKAPAN_BARU = [fileOto('Screenshot (15).png', 'PNG', '#8a6cf0')];
+  const FOLDER_OTO = [
+    { tab: 'Downloads', isi: UNDUHAN, baru: UNDUHAN_BARU, aksen: PROFIL[0].terang, awal: 'Your Downloads, newest first', datang: 'New downloads drop right in' },
+    { tab: 'Screenshots', isi: TANGKAPAN, baru: TANGKAPAN_BARU, aksen: PROFIL[1].terang, awal: 'Your Screenshots, newest first', datang: 'New screenshots too' },
+  ];
+  const deskOto = $('#deskOto');
+  const barOto = buatBar(deskOto.querySelector('.bar-oto'), { items: UNDUHAN, pilih: 0, cahaya: true, aksen: FOLDER_OTO[0].aksen });
+  const deretanOto = buatDeretan(deskOto.querySelector('.deretan-oto'), null, FOLDER_OTO.map(f => f.tab));
+  const dOto = pasangDesktopBar(deskOto, FOLDER_OTO[0].aksen);
+  const GESER_KOTAK = 124; // lebar kotak 112 + sela 12 (.kotak, .isi)
+  // File baru datang: ketujuh kotak bergeser satu kotak ke kanan (yang ke-7 memudar keluar), lalu isinya dipasang
+  // ulang di tempatnya semula dengan file baru meletup di kotak 1; geseran inline ikut hilang karena pasang() mengganti
+  // elemen kotaknya.
+  async function fileDatang(it) {
+    const lama = barOto.daftar.slice();
+    [...barOto.el.querySelectorAll('.isi > .kotak')].forEach((k, n) => {
+      k.style.transition = 'translate .45s var(--gerak), opacity .3s ease';
+      k.style.translate = `${GESER_KOTAK}px 0`;
+      if (n === lama.length - 1) k.style.opacity = '0';
+    });
+    await tidur(470);
+    for (let n = lama.length - 1; n > 0; n--) barOto.pasang(n, lama[n - 1], false);
+    barOto.pasang(0, it);
+    barOto.pilih(0);
+  }
+  function folderKe(f) {
+    const F = FOLDER_OTO[f];
+    deretanOto.ke(f);
+    barOto.aksen(F.aksen);
+    dOto.skala.style.setProperty('--tint', F.aksen);
+    dOto.tulis(F.awal);
+    barOto.pilih(0);
+    return barOto.ganti(F.isi);
+  }
+  async function otoSiklus() {
+    const k = 'oto';
+    if (kurangi) { folderKe(0); return; }
+    for (let f = 0; ; f = (f + 1) % FOLDER_OTO.length) {
+      await folderKe(f);
+      await tunggu(2200, k);
+      dOto.tulis(FOLDER_OTO[f].datang);
+      for (const it of FOLDER_OTO[f].baru) {
+        await tunggu(900, k);
+        await fileDatang(it);
+      }
+      await tunggu(2400, k);
+    }
+  }
+
+  // Nisan (user 2026-10-28, "hapus semua bagian ini"): halaman fitur lainnya, keLain() / lainSiklus() (daftar nama memilih peragaan, bergiliran tiap 11 detik), buatKursor() & KURSOR_LUNCUR, dan peragaan Item types (jenisLainSiklus(), JENIS_ISI), Paste text (salinSiklus(), surel bertanda tangan), Profile colors (warnaSiklus(), tujuh aksen tema.h), Shortcuts (pintasSiklus()).
+
+  // Nisan (user 2026-10-27, "hapus animasinya yang baru kamu buat tadi, jadi clean aja"): kenalSiklus, peragaan yang
+  // sama di halaman putih penjelasan (#panggungKenal, panggung logis 1660 x 560 tanpa wallpaper: bar utuh di kiri,
+  // Explorer terpisah di kanan), beserta pilihan barKiri dan tempat lepas seluruh daftar saat bar tidak menutupinya.
+
+  // Nisan (user 2026-10-27, eksperimen 3, "bagian ini hapus aja semuanya"): peragaan bagian fitur, yaitu buatKursor()
+  // & KURSOR_LUNCUR, Text ready to paste (salinSiklus(), surel bertanda tangan), Anything (isiSiklus(), panel tambah
+  // Apps / File / Site / Text dengan kursor), Profiles (profilSiklus(), kursor mengklik tab), Nama & nomor kotak
+  // (labelSiklus()), Menu klik kanan (menuSiklus()), Tema (temaSiklus()), dan Pintasan sendiri (pintasSiklus()).
+  // Yang tersisa di bawah ini dipakai panel tambah pembuka.
+  // nisan: baris "Frequently used" (APP_SERING) dihapus, user 2026-10-26: "yang frequently used itu dihapus, jadi
+  // langsung all apps aja". App aslinya juga tidak membuatnya (cari.cpp:47): kolom kosong = semua app A-Z.
+  const APP_SEMUA = [['Calculator', 'kalk'], ['Calendar', 'catatan'], ['Camera', 'kamera'], ['Clock', 'jam'], ['Contacts', 'kontak'], ['Mail', 'surel'], ['Maps', 'peta'],
+    ['Music', 'musik'], ['Notes', 'catatan'], ['Photos', 'foto'], ['Recorder', 'perekam'], ['Settings', 'gir'], ['Terminal', 'terminal'], ['Weather', 'cuaca']];
+  const kartu = ([n, ik]) => `<div class="kartu" data-n="${n.toLowerCase()}"><div class="ikon">${IKON[ik]}</div><div class="nm">${n}</div></div>`;
+  const PETUNJUK = [
+    '<span><b>type</b>to search</span><span><b>↵</b>add</span><span><b>esc</b>cancel</span>',
+    '<span><b>drag</b>a file or folder</span><span><b>↵</b>add</span><span><b>esc</b>cancel</span>',
+    '<span><b>paste</b>a site address</span><span><b>↵</b>add</span><span><b>esc</b>cancel</span>',
+    '<span><b>write</b>the text to copy</span><span><b>↵</b>add</span><span><b>esc</b>cancel</span>',
+  ];
+  // ── Muncul saat digulir: cuma yang di bawah layar pertama ────────────
+  const muncul = [...document.querySelectorAll('[data-reveal]')];
+  if (!kurangi) {
+    const batas = innerHeight * 0.92;
+    muncul.forEach(el => { if (el.getBoundingClientRect().top > batas) el.classList.add('pre'); });
+    // Satu bagian muncul serentak (user 2026-10-26, "harusnya barengan sama kaya judul gitu jadi user sekali baca"):
+    // begitu satu elemen terlihat, semua [data-reveal] di section yang sama ikut muncul. KOREKSI: dulu
+    // "e.target.classList.remove('pre')" per elemen, jadi kalimat di bawah animasi baru muncul sesudah digulir lagi.
+    const io2 = new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      const sekelompok = e.target.closest('section')?.querySelectorAll('[data-reveal]') || [e.target];
+      sekelompok.forEach(el => { el.classList.remove('pre'); io2.unobserve(el); });
+    }), { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    muncul.forEach(el => io2.observe(el));
+  }
+
+  hero(); seretSiklus(); profilDeskSiklus(); otoSiklus();
+})();
+</script>
+</body>
+</html>
